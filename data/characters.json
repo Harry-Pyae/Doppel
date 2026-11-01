@@ -1,0 +1,14 @@
+[
+  { "id": "taylor-swift", "name": "Taylor Swift", "category": "musician", "image": "taylor-swift.webp" },
+  { "id": "ariana-grande", "name": "Ariana Grande", "category": "musician", "image": "ariana-grande.webp" },
+  { "id": "ed-sheeran", "name": "Ed Sheeran", "category": "musician", "image": "ed-sheeran.webp" },
+  { "id": "leonardo-dicaprio", "name": "Leonardo DiCaprio", "category": "actor", "image": "leonardo-dicaprio.webp" },
+  { "id": "brad-pitt", "name": "Brad Pitt", "category": "actor", "image": "brad-pitt.webp" },
+  { "id": "van-gogh", "name": "Vincent van Gogh", "category": "artist", "image": "van-gogh.webp" },
+  { "id": "picasso", "name": "Pablo Picasso", "category": "artist", "image": "picasso.webp" },
+  { "id": "spider-man", "name": "Spider-Man", "category": "superhero", "image": "spider-man.webp" },
+  { "id": "iron-man", "name": "Iron Man", "category": "superhero", "image": "iron-man.webp" },
+  { "id": "batman", "name": "Batman", "category": "superhero", "image": "batman.webp" },
+  { "id": "naruto", "name": "Naruto", "category": "anime", "image": "naruto.webp" },
+  { "id": "goku", "name": "Goku", "category": "anime", "image": "goku.webp" }
+]

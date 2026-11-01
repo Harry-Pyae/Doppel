@@ -1,0 +1,29 @@
+# Dependencies and builds
+node_modules/
+.next/
+.next-*/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Tests
+playwright-report/
+test-results/
+
+# Environment: secrets never committed (.env.example is the empty template)
+.env*
+!.env.example
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+
+# Deploys, OS, editor
+.vercel
+.DS_Store
+Thumbs.db
+
+# Claude Code: local settings; project skills are reinstalled from skills-lock.json (/setup-skills)
+.claude/settings.local.json
+.claude/skills/

@@ -1,0 +1,385 @@
+@import "tailwindcss";
+
+/* PolyHydra Free-To-Play: matte cream and sage. Solid fills, thin rules, one soft
+   shadow; no gradients, glows or neon. */
+@theme {
+  --color-table: #e4d8bb;
+  --color-paper: #f1e8d2;
+  --color-ink: #2f2a20;
+  --color-muted: #62594a;
+  --color-line: #b4a07a;
+  --color-sage: #5f7a55;
+  --color-sage-deep: #4b6243;
+  --color-on-sage: #f6f1e3;
+  --color-brick: #9b4a3c;
+  --color-amber: #9a7432;
+  --font-display: var(--font-fraunces), var(--font-myanmar), Georgia, serif;
+  --font-sans: var(--font-manrope), var(--font-myanmar), system-ui, sans-serif;
+}
+
+:root {
+  --radius: 8px;
+  --shadow: 0 6px 18px rgb(60 45 20 / 0.14);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  color-scheme: light;
+}
+
+html {
+  background: var(--color-table);
+  color: var(--color-ink);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  font-family: var(--font-sans);
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+}
+/* Burmese: taller lines, no tracking or case changes. */
+html[lang="my"] body {
+  line-height: 1.75;
+}
+/* (Latin room codes keep their spacing.) */
+html[lang="my"] :not(.tracked) {
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-sage-deep);
+  outline-offset: 3px;
+}
+
+@layer components {
+/* The one column every screen lives in; phone first, centred on tablets and desktop. */
+.shell {
+  width: 100%;
+  max-width: 30rem;
+  min-height: 100dvh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+}
+
+.panel {
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  /* a thin inner rule, like a printed card */
+  outline: 1px solid color-mix(in srgb, var(--color-line) 45%, transparent);
+  outline-offset: -5px;
+}
+
+/* ---------- buttons: big targets, a small press ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 3.25rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-sage-deep);
+  background: var(--color-sage);
+  color: var(--color-on-sage);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    transform 160ms var(--ease-out),
+    background-color 150ms ease,
+    opacity 150ms ease;
+}
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-quiet {
+  background: transparent;
+  color: var(--color-ink);
+  border-color: var(--color-line);
+}
+.btn-danger {
+  background: var(--color-brick);
+  border-color: color-mix(in srgb, var(--color-brick) 80%, black);
+  color: var(--color-on-sage);
+}
+.btn-small {
+  min-height: 2.75rem;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.9375rem;
+}
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover:not(:disabled) {
+    background: var(--color-sage-deep);
+  }
+  .btn-quiet:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-line) 22%, transparent);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-brick) 88%, black);
+  }
+}
+
+.field {
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-line);
+  background: #fbf7ec;
+  color: var(--color-ink);
+  /* 16px or more, or iOS zooms the page on focus */
+  font-size: 1.0625rem;
+}
+.field:focus-visible {
+  outline-offset: 1px;
+}
+.code-field {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+.code-field::placeholder {
+  letter-spacing: 0.3em;
+  color: color-mix(in srgb, var(--color-muted) 45%, transparent);
+}
+
+/* ---------- language switch ---------- */
+.lang {
+  display: inline-flex;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--color-paper);
+}
+.lang button {
+  min-height: 2.5rem;
+  min-width: 3rem;
+  padding: 0 0.7rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-muted);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.lang button + button {
+  border-left: 1px solid var(--color-line);
+}
+.lang button[aria-pressed="true"] {
+  background: var(--color-sage);
+  color: var(--color-on-sage);
+}
+
+/* ---------- the connection pill ---------- */
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-line);
+  background: var(--color-paper);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-muted);
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+.conn[data-state="reconnecting"] {
+  background: var(--color-amber);
+  border-color: var(--color-amber);
+  color: var(--color-on-sage);
+}
+.conn[data-state="offline"] {
+  background: var(--color-brick);
+  border-color: var(--color-brick);
+  color: var(--color-on-sage);
+}
+
+.dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  flex: none;
+  border-radius: 999px;
+  background: var(--color-sage);
+}
+.dot[data-on="false"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-muted) 60%, transparent);
+}
+.conn .dot {
+  background: currentColor;
+}
+.conn[data-state="connected"] .dot {
+  background: var(--color-sage);
+}
+
+.loading {
+    animation: appear 200ms ease-out 400ms both;
+  }
+  @keyframes appear {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* ---------- notices (host changed, removed, errors) ---------- */
+.notice {
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 200ms var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/* ---------- confirmation overlay (native <dialog>) ---------- */
+dialog.confirm {
+  margin: auto;
+  width: min(100% - 2rem, 24rem);
+  padding: 0;
+  color: var(--color-ink);
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 200ms var(--ease-out),
+    overlay 200ms allow-discrete,
+    display 200ms allow-discrete;
+}
+dialog.confirm:not([open]) {
+  opacity: 0;
+  transform: scale(0.96);
+  transition-duration: 120ms;
+}
+@starting-style {
+  dialog.confirm[open] {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+dialog.confirm::backdrop {
+  background: rgb(47 42 32 / 0.45);
+  transition:
+    opacity 200ms ease,
+    overlay 200ms allow-discrete,
+    display 200ms allow-discrete;
+}
+dialog.confirm:not([open])::backdrop {
+  opacity: 0;
+}
+@starting-style {
+  dialog.confirm[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+/* ---------- the card: hidden until held ---------- */
+.card {
+  position: relative;
+  width: min(100%, 21rem);
+  aspect-ratio: 3 / 4;
+  margin: 0 auto;
+  display: block;
+  border-radius: 14px;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: transform 160ms var(--ease-out);
+}
+.card:active {
+  transform: scale(0.985);
+}
+.card-back,
+.card-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: inherit;
+  box-shadow: var(--shadow);
+}
+.card-back {
+  justify-content: center;
+  gap: 0.75rem;
+  background: var(--color-sage);
+  color: var(--color-on-sage);
+  border: 1px solid var(--color-sage-deep);
+  outline: 1px solid color-mix(in srgb, var(--color-on-sage) 45%, transparent);
+  outline-offset: -10px;
+}
+.card-face {
+  gap: 0.75rem;
+  padding: 1rem;
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  outline: 1px solid color-mix(in srgb, var(--color-line) 45%, transparent);
+  outline-offset: -6px;
+  /* Shown at once on press; hidden at once on release (privacy beats polish). */
+  animation: reveal 140ms var(--ease-out);
+}
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+.stamp {
+  position: absolute;
+  top: 1.5rem;
+  left: 50%;
+  translate: -50% 0;
+  rotate: -5deg;
+  padding: 0.3rem 0.9rem;
+  border: 2px solid var(--color-brick);
+  border-radius: 6px;
+  background: var(--color-paper);
+  color: var(--color-brick);
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-face {
+    animation-name: fade;
+  }
+  .btn:active:not(:disabled),
+  .card:active {
+    transform: none;
+  }
+  dialog.confirm,
+  dialog.confirm:not([open]) {
+    transform: none;
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+}
+

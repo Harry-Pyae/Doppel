@@ -1,0 +1,21 @@
+import { createClient } from "@supabase/supabase-js";
+
+export const PASSWORD = "e2e-password-123";
+export const ACCOUNTS = [
+  { username: "e2e_ann", name: "Ann" },
+  { username: "e2e_ben", name: "Ben" },
+  { username: "e2e_cho", name: "Cho" },
+  { username: "e2e_dee", name: "Dee" },
+];
+/** Waiting for approval: may not play. */
+export const PENDING = { username: "e2e_pen", name: "Pen" };
+
+/** Every test account leaves its room, so each test starts at the main menu. */
+export async function leaveRooms() {
+  for (const a of ACCOUNTS) {
+    const db = createClient(process.env.E2E_SUPABASE_URL!, process.env.E2E_ANON_KEY!, { auth: { persistSession: false }, db: { schema: "imposter" } });
+    const { error } = await db.auth.signInWithPassword({ email: `${a.username}@e2e.invalid`, password: PASSWORD });
+    if (error) throw error;
+    await db.rpc("leave_room");
+  }
+}
