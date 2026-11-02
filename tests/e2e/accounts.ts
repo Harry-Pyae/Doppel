@@ -10,12 +10,15 @@ export const ACCOUNTS = [
 /** Waiting for approval: may not play. */
 export const PENDING = { username: "e2e_pen", name: "Pen" };
 
+/** The game's API as one test account, straight to the database (as a phone would call it). */
+export async function api(a: (typeof ACCOUNTS)[number]) {
+  const db = createClient(process.env.E2E_SUPABASE_URL!, process.env.E2E_ANON_KEY!, { auth: { persistSession: false }, db: { schema: "imposter" } });
+  const { error } = await db.auth.signInWithPassword({ email: `${a.username}@e2e.invalid`, password: PASSWORD });
+  if (error) throw error;
+  return db;
+}
+
 /** Every test account leaves its room, so each test starts at the main menu. */
 export async function leaveRooms() {
-  for (const a of ACCOUNTS) {
-    const db = createClient(process.env.E2E_SUPABASE_URL!, process.env.E2E_ANON_KEY!, { auth: { persistSession: false }, db: { schema: "imposter" } });
-    const { error } = await db.auth.signInWithPassword({ email: `${a.username}@e2e.invalid`, password: PASSWORD });
-    if (error) throw error;
-    await db.rpc("leave_room");
-  }
+  for (const a of ACCOUNTS) await (await api(a)).rpc("leave_room");
 }

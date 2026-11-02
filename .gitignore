@@ -27,3 +27,8 @@ Thumbs.db
 # Claude Code: local settings; project skills are reinstalled from skills-lock.json (/setup-skills)
 .claude/settings.local.json
 .claude/skills/
+
+# Owner art originals (npm run art reads them; its output is committed)
+assets/
+# skills CLI copies (reinstall with /setup-skills)
+.agents/

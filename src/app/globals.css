@@ -62,6 +62,53 @@ html[lang="my"] :not(.tracked) {
   gap: 1rem;
   padding: max(0.75rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom))
     max(1rem, env(safe-area-inset-left));
+  background: var(--color-table);
+  /* The card (and the timer above it) shrink on short screens so the host's buttons stay in view. */
+  --card-w: min(100%, 21rem, calc((100dvh - 21rem) * 0.75));
+}
+
+/* ---------- the table art (main menu, game room, "Round in progress") ---------- */
+.backdrop {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+  z-index: -1;
+  width: min(100%, 30rem);
+  height: 100%;
+  /* cover, centred: never stretched */
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+  user-select: none;
+}
+/* Light text on the dark wood; panels and pills keep their own ink. */
+.shell[data-art] {
+  background: transparent;
+  --color-ink: #f6eedb;
+  --color-muted: #ddd0b0;
+  color: var(--color-ink);
+  /* a soft dark halo keeps light text readable where the art has pale cards */
+  text-shadow:
+    0 0 8px rgb(20 10 4 / 0.85),
+    0 1px 2px rgb(20 10 4 / 0.7);
+}
+.shell[data-art] > footer {
+  align-self: center;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  background: rgb(34 16 7 / 0.62);
+}
+.shell[data-art] :is(.panel, .conn, .lang, dialog) {
+  --color-ink: #2f2a20;
+  --color-muted: #62594a;
+  text-shadow: none;
+}
+.shell[data-art] :is(.panel, dialog) {
+  color: var(--color-ink);
+}
+.shell[data-art] .btn-quiet:not(.panel *, dialog *) {
+  background: rgb(34 16 7 / 0.62);
 }
 
 .panel {
@@ -158,15 +205,17 @@ html[lang="my"] :not(.tracked) {
   color: color-mix(in srgb, var(--color-muted) 45%, transparent);
 }
 
-/* ---------- language switch ---------- */
-.lang {
+/* ---------- language switch and the timer length (segmented) ---------- */
+.lang,
+.seg {
   display: inline-flex;
   border: 1px solid var(--color-line);
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--color-paper);
 }
-.lang button {
+.lang button,
+.seg button {
   min-height: 2.5rem;
   min-width: 3rem;
   padding: 0 0.7rem;
@@ -176,12 +225,102 @@ html[lang="my"] :not(.tracked) {
   cursor: pointer;
   touch-action: manipulation;
 }
-.lang button + button {
+.lang button + button,
+.seg button + button {
   border-left: 1px solid var(--color-line);
 }
-.lang button[aria-pressed="true"] {
+.lang button[aria-pressed="true"],
+.seg button[aria-checked="true"] {
   background: var(--color-sage);
   color: var(--color-on-sage);
+}
+.seg button {
+  min-height: 2.75rem;
+  min-width: 0;
+  padding: 0 0.25rem;
+  transition: background-color 150ms ease;
+}
+.seg button:disabled {
+  cursor: wait;
+}
+
+/* ---------- on/off switch (native checkbox) ---------- */
+.switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 3rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-line) 70%, transparent);
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+.switch::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(1.75rem - 6px);
+  height: calc(1.75rem - 6px);
+  border-radius: 999px;
+  background: var(--color-paper);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 180ms var(--ease-out);
+}
+.switch:checked {
+  background: var(--color-sage);
+}
+.switch:checked::before {
+  transform: translateX(1.25rem);
+}
+
+/* ---------- round timer: a bar above the card, never over it ---------- */
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: var(--card-w);
+  min-height: 2.5rem;
+  margin: 0 auto;
+  padding: 0 0.85rem;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-paper);
+  transition: border-color 200ms ease;
+}
+.timer-track {
+  flex: 1;
+  height: 0.375rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-line) 35%, transparent);
+}
+.timer-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-sage);
+  transform-origin: left;
+}
+.timer-text {
+  min-width: 3.25rem;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.timer[data-state="idle"] .timer-text {
+  color: var(--color-muted);
+}
+.timer[data-state="idle"] .timer-fill {
+  opacity: 0.35;
+}
+.timer[data-state="up"] {
+  border-color: var(--color-brick);
+}
+.timer[data-state="up"] .timer-text {
+  color: var(--color-brick);
 }
 
 /* ---------- the connection pill ---------- */
@@ -294,8 +433,9 @@ dialog.confirm:not([open])::backdrop {
 /* ---------- the card: hidden until held ---------- */
 .card {
   position: relative;
-  width: min(100%, 21rem);
+  width: var(--card-w);
   aspect-ratio: 3 / 4;
+  container-type: inline-size;
   margin: 0 auto;
   display: block;
   border-radius: 14px;
@@ -343,6 +483,34 @@ dialog.confirm:not([open])::backdrop {
     opacity: 0;
     transform: scale(0.98);
   }
+}
+/* The owner's card art: the picture sits in its window, the name on its nameplate. */
+.card-face.card-art {
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+}
+.card-plate {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8%;
+  text-align: center;
+}
+.card-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: clamp(1.25rem, 8.5cqw, 1.875rem);
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--color-ink);
 }
 .stamp {
   position: absolute;

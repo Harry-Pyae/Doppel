@@ -1,5 +1,5 @@
 {
-  "name": "vote-out-the-imposter",
+  "name": "doppel",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,9 @@
     "data:check": "node scripts/check-data.mjs",
     "data:sync": "node scripts/sync-pairs.mjs",
     "e2e": "playwright test",
-    "check": "npm run lint && npm run typecheck && npm test && npm run data:check"
+    "check": "npm run lint && npm run typecheck && npm test && npm run data:check",
+    "art": "node scripts/art.mjs",
+    "screens": "playwright test --grep @screens"
   },
   "engines": {
     "node": ">=24"
@@ -34,6 +36,7 @@
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.2",
+    "sharp": "^0.35.5",
     "supabase": "^2.122.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",

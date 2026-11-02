@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { art } from "@/lib/art";
 import { cleanCode, CODE_LENGTH } from "@/lib/game";
 import type { Key } from "@/lib/i18n";
 import { LanguageToggle, useT } from "./Locale";
@@ -18,9 +19,12 @@ export function App({ name }: { name: string }) {
   const inRoom = state?.status === "in_room" ? state : null;
   // A locked phone would show as away; keep the screen on in the game room and during rounds.
   useWakeLock(!!inRoom);
+  // The table art behind the main menu, the game room and "Round in progress" (not the card).
+  const backdrop = !!art.menu && !!state && (!inRoom || inRoom.room.phase === "lobby" || inRoom.me.waiting);
 
   return (
-    <main className="shell">
+    <main className="shell" data-art={backdrop || undefined}>
+      {backdrop && <Backdrop />}
       <div className="flex items-center justify-between gap-2">
         <Connection conn={conn} />
         <LanguageToggle />
@@ -41,6 +45,21 @@ export function App({ name }: { name: string }) {
         <Round key={inRoom.room.round} state={inRoom} act={act} notify={notify} />
       )}
     </main>
+  );
+}
+
+function Backdrop() {
+  const files = art.menu!.files;
+  return (
+    <img
+      className="backdrop"
+      src={files[0].src}
+      srcSet={files.map((f) => `${f.src} ${f.width}w`).join(", ")}
+      sizes="(min-width: 30rem) 30rem, 100vw"
+      alt=""
+      fetchPriority="high"
+      draggable={false}
+    />
   );
 }
 

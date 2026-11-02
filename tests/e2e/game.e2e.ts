@@ -1,18 +1,28 @@
 // The whole game on four phones (four browser contexts), against the local Supabase.
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import characters from "../../data/characters.json" with { type: "json" };
-import { ACCOUNTS, leaveRooms, PASSWORD, PENDING } from "./accounts";
+import { ACCOUNTS, api, leaveRooms, PASSWORD, PENDING } from "./accounts";
 
 /** seen: every API response body and Realtime frame this phone received. */
 type Phone = { page: Page; context: BrowserContext; name: string; seen: string[] };
 const contexts: BrowserContext[] = [];
 
-/** Signs accounts from..to-1 in, each on its own phone. */
-async function phones(browser: Browser, n = 4, from = 0): Promise<Phone[]> {
+/**
+ * Signs accounts from..n-1 in, each on its own phone. skews: how far each phone's clock is off
+ * (ms), to prove the countdown follows the server's clock rather than the phone's.
+ */
+async function phones(browser: Browser, n = 4, from = 0, skews: number[] = []): Promise<Phone[]> {
   return Promise.all(
-    ACCOUNTS.slice(from, n).map(async (a) => {
+    ACCOUNTS.slice(from, n).map(async (a, i) => {
       const context = await browser.newContext();
       contexts.push(context);
+      if (skews[i]) await context.clock.install({ time: Date.now() + skews[i] });
+      // The timer's sound test hook (src/lib/sound.ts): every sound this page plays.
+      await context.addInitScript(() => {
+        const w = window as unknown as { sounds: string[] };
+        w.sounds = [];
+        addEventListener("doppel:sound", (e) => w.sounds.push((e as CustomEvent<string>).detail));
+      });
       const page = await context.newPage();
       const seen: string[] = [];
       page.on("response", async (r) => {
@@ -237,6 +247,102 @@ test("refresh mid-round restores the room, the round and the card", async ({ bro
   await expect(all[2].page.getByTestId("room-code")).toHaveText(code);
 });
 
+/** What each phone's countdown shows as left (ms), read on all of them at once. */
+const lefts = (all: Phone[]) =>
+  Promise.all(all.map((p) => p.page.getByTestId("timer").evaluate((el) => Number((el as HTMLElement).dataset.endsLocal) - Date.now())));
+const spread = (xs: number[]) => Math.max(...xs) - Math.min(...xs);
+const sounds = (p: Phone) => p.page.evaluate(() => (window as unknown as { sounds: string[] }).sounds);
+
+test("round timer: the host's, the same on every phone (clocks off by seconds), through a refresh; sound on the host's only", async ({ browser }) => {
+  test.setTimeout(150_000);
+  const all = await phones(browser, 4, 0, [0, 7_000, -4_000, 2_500]);
+  const [host, ...others] = all;
+  // The clocks really are off.
+  const hostNow = await host.page.evaluate(() => Date.now());
+  expect((await all[1].page.evaluate(() => Date.now())) - hostNow).toBeGreaterThan(6_000);
+  const code = await createRoom(host);
+  for (const p of others) await join(p, code);
+  for (const p of all) await expect(p.page.getByTestId("player")).toHaveCount(4);
+
+  // 2 minutes by default; only the host picks; everyone sees it.
+  for (const p of others) {
+    await expect(p.page.getByTestId("timer-minutes")).toHaveText("2 min");
+    await expect(p.page.getByRole("radio")).toHaveCount(0);
+  }
+  await host.page.getByRole("radio", { name: "1 min" }).click();
+  for (const p of others) await expect(p.page.getByTestId("timer-minutes")).toHaveText("1 min");
+
+  // Never started on its own.
+  await host.page.getByRole("button", { name: "Start round" }).click();
+  for (const p of all) await expect(p.page.getByTestId("timer-text")).toHaveText("1:00");
+  for (const p of others) await expect(p.page.getByRole("button", { name: "Start timer" })).toHaveCount(0);
+  await host.page.waitForTimeout(1_500);
+  for (const p of all) await expect(p.page.getByTestId("timer")).toHaveAttribute("data-state", "idle");
+
+  await host.page.getByRole("button", { name: "Start timer" }).click();
+  for (const p of all) await expect(p.page.getByTestId("timer")).toHaveAttribute("data-ends-local", /\d/);
+  expect(spread(await lefts(all))).toBeLessThan(500);
+  // The bar sits above the card and never covers it.
+  const bar = (await host.page.getByTestId("timer").boundingBox())!;
+  const card = (await host.page.getByTestId("card").boundingBox())!;
+  expect(bar.y + bar.height).toBeLessThanOrEqual(card.y);
+
+  // A refresh mid-countdown comes back to the same time.
+  await all[2].page.reload();
+  await expect(all[2].page.getByTestId("timer")).toHaveAttribute("data-ends-local", /\d/);
+  await all[2].page.waitForTimeout(1_000);
+  expect(spread(await lefts(all))).toBeLessThan(500);
+  await expect(all[2].page.getByTestId("timer")).toHaveAttribute("data-state", "running");
+
+  for (const p of all) await expect(p.page.getByTestId("timer-text")).toHaveText("Time’s up", { timeout: 75_000 });
+  // The last 5 seconds tick and 0 chimes, on the host's phone only.
+  expect(await sounds(host)).toEqual(["tick", "tick", "tick", "tick", "tick", "chime"]);
+  for (const p of others) expect(await sounds(p)).toEqual([]);
+});
+
+test("round timer: +30 s and Stop (host only), Restart clears it, Off hides it", async ({ browser }) => {
+  const { all, host } = await room(browser, 3);
+  await host.page.getByRole("button", { name: "Start round" }).click();
+  await host.page.getByRole("button", { name: "Start timer" }).click();
+  for (const p of all) await expect(p.page.getByTestId("timer")).toHaveAttribute("data-state", "running");
+
+  // Only the host may: the others' calls are refused by the database too.
+  const ben = await api(ACCOUNTS[1]);
+  const { data: s } = await ben.rpc("my_state");
+  for (const action of ["start", "add", "stop"]) {
+    const { error } = await ben.rpc("timer", { p_room: s.room.id, p_action: action });
+    expect(error?.message).toBe("not_host");
+  }
+  for (const name of ["Start timer", "+30 s", "Stop"]) await expect(all[1].page.getByRole("button", { name, exact: true })).toHaveCount(0);
+
+  await host.page.getByRole("button", { name: "+30 s" }).click();
+  for (const p of all) await expect(p.page.getByTestId("timer-text")).toHaveText(/^2:(2\d|30)$/);
+  await host.page.getByRole("button", { name: "Stop", exact: true }).click();
+  for (const p of all) {
+    await expect(p.page.getByTestId("timer")).toHaveAttribute("data-state", "idle");
+    await expect(p.page.getByTestId("timer-text")).toHaveText("2:00");
+  }
+
+  // Restart clears it.
+  await host.page.getByRole("button", { name: "Start timer" }).click();
+  await expect(all[1].page.getByTestId("timer")).toHaveAttribute("data-state", "running");
+  await confirm(host, "Restart");
+  await host.page.getByRole("button", { name: "Start round" }).click();
+  for (const p of all) await expect(p.page.getByTestId("timer")).toHaveAttribute("data-state", "idle");
+
+  // Off hides it everywhere.
+  await confirm(host, "Restart");
+  await host.page.getByRole("radio", { name: "Off" }).click();
+  await expect(all[1].page.getByTestId("timer-minutes")).toHaveText("Off");
+  await expect(host.page.getByRole("switch", { name: "Timer sound" })).toHaveCount(0);
+  await host.page.getByRole("button", { name: "Start round" }).click();
+  for (const p of all) {
+    await expect(p.page.getByTestId("card")).toBeVisible();
+    await expect(p.page.getByTestId("timer")).toHaveCount(0);
+  }
+  await expect(host.page.getByRole("button", { name: "Start timer" })).toHaveCount(0);
+});
+
 test("sign-in: only approved accounts get in, with the shared rules", async ({ page }) => {
   const signIn = async (username: string, password: string) => {
     await page.getByLabel("Username").fill(username);
@@ -259,4 +365,43 @@ test("sign-in: only approved accounts get in, with the shared rules", async ({ p
   await expect(page.getByText("Signed in as Ann")).toBeVisible();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
+});
+
+// npm run screens (only then): the README's screenshots, phone and desktop.
+test("screenshots for the README @screens", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const sizes = [
+    { width: 390, height: 844 },
+    { width: 1440, height: 900 },
+  ];
+  const shoot = async (page: Page, name: string, hold = false) => {
+    for (const size of sizes) {
+      await page.setViewportSize(size);
+      await page.waitForFunction(() => [...document.images].every((i) => i.complete));
+      if (hold) {
+        await page.getByTestId("card").hover();
+        await page.mouse.down();
+        await expect(page.getByTestId("card-name")).toBeVisible();
+        await page.waitForFunction(() => [...document.images].every((i) => i.complete));
+      }
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `docs/screens/${name}-${size.width}.jpg`, type: "jpeg", quality: 82 });
+      if (hold) await page.mouse.up();
+    }
+    await page.setViewportSize(sizes[0]);
+  };
+  const all = await phones(browser);
+  const host = all[0];
+  await shoot(all[3].page, "menu");
+  const code = await createRoom(host);
+  for (const p of all.slice(1)) await join(p, code);
+  for (const p of all) await expect(p.page.getByTestId("player")).toHaveCount(4);
+  await shoot(host.page, "room");
+  await host.page.getByRole("button", { name: "Start round" }).click();
+  await host.page.getByRole("button", { name: "Start timer" }).click();
+  await host.page.waitForTimeout(5_000);
+  const cards = [];
+  for (const p of all) cards.push(await reveal(p));
+  await shoot(all[cards.findIndex((c) => !c.imposter)].page, "card", true);
+  await shoot(all[cards.findIndex((c) => c.imposter)].page, "card-imposter", true);
 });

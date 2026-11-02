@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { art } from "@/lib/art";
 import { character, type MyState } from "@/lib/game";
+import { unlockSound } from "@/lib/sound";
 import type { Act, Notify } from "./App";
 import { Confirm } from "./Confirm";
 import { useT } from "./Locale";
 import { LeaveButton } from "./Room";
+import { TimerBar } from "./Timer";
 
 type InRoom = Extract<MyState, { status: "in_room" }>;
 
 export function Round({ state, act, notify }: { state: InRoom; act: Act; notify: Notify }) {
   const t = useT();
   const { room, card } = state;
+  const { timer } = room;
   const [asking, setAsking] = useState<"restart" | "end" | null>(null);
   // Which overlay was last asked for, so its text stays while it closes.
   const [last, setLast] = useState<"restart" | "end">("restart");
@@ -24,6 +28,14 @@ export function Round({ state, act, notify }: { state: InRoom; act: Act; notify:
     if (failed && fn === "restart_round") notify(failed);
     setBusy(false);
   }
+  async function runTimer(action: "start" | "add" | "stop") {
+    // The host's tap is what lets the browser play the timer's sound.
+    if (action !== "stop") unlockSound();
+    setBusy(true);
+    const failed = await act("timer", { p_room: room.id, p_action: action });
+    if (failed) notify(failed);
+    setBusy(false);
+  }
   const ask = (which: "restart" | "end") => {
     setLast(which);
     setAsking(which);
@@ -32,9 +44,28 @@ export function Round({ state, act, notify }: { state: InRoom; act: Act; notify:
   return (
     <>
       <p className="pt-2 text-center text-xs font-bold tracking-[0.14em] text-muted uppercase">{t("round.label", { n: room.round })}</p>
+      <TimerBar timer={timer} host={room.host} />
       {card && <Card character={card.character} imposter={card.imposter} />}
 
-      <div className="mt-auto pt-2">
+      <div className="mt-auto flex flex-col gap-2 pt-2">
+        {room.host && timer.minutes > 0 && (
+          <div className="grid grid-cols-2 gap-2">
+            {timer.ends_at === null ? (
+              <button className="btn col-span-2" disabled={busy} onClick={() => runTimer("start")}>
+                {t("timer.start")}
+              </button>
+            ) : (
+              <>
+                <button className="btn" disabled={busy} onClick={() => runTimer("add")}>
+                  {t("timer.add")}
+                </button>
+                <button className="btn btn-quiet" disabled={busy} onClick={() => runTimer("stop")}>
+                  {t("timer.stop")}
+                </button>
+              </>
+            )}
+          </div>
+        )}
         {room.host ? (
           <div className="grid grid-cols-2 gap-2">
             <button className="btn btn-quiet" disabled={busy} onClick={() => ask("restart")}>
@@ -90,6 +121,7 @@ function Card({ character: id, imposter }: { character: string; imposter: boolea
   const t = useT();
   const c = character(id);
   const [held, setHeld] = useState(false);
+  const layout = art.card;
 
   useEffect(() => {
     const hide = () => setHeld(false);
@@ -103,10 +135,11 @@ function Card({ character: id, imposter }: { character: string; imposter: boolea
     };
   }, []);
 
-  // Warm the image so it is there the moment the card is pressed.
+  // Warm the images so they are there the moment the card is pressed.
   useEffect(() => {
     if (c.image) new Image().src = c.image;
-  }, [c.image]);
+    if (layout) new Image().src = CARD_ART;
+  }, [c.image, layout]);
 
   const show = () => {
     setHeld(true);
@@ -114,11 +147,29 @@ function Card({ character: id, imposter }: { character: string; imposter: boolea
   };
   const hide = () => setHeld(false);
 
+  const picture = (
+    <>
+      {c.image ? <img src={c.image} alt="" className="size-full object-cover" draggable={false} /> : <Placeholder name={c.name} />}
+      {imposter && (
+        <span className="stamp" data-testid="imposter">
+          {t("round.imposter")}
+        </span>
+      )}
+    </>
+  );
+  const name = (
+    <span className="card-name" data-testid="card-name">
+      {c.name}
+    </span>
+  );
+
   return (
     <button
       type="button"
       className="card"
       data-testid="card"
+      // The card art's own shape: its proportions and corner radius (data/card-layout.json).
+      style={layout ? { aspectRatio: layout.aspect, borderRadius: `${layout.radius}% / ${layout.radius * layout.aspect}%` } : undefined}
       aria-label={held ? undefined : t("round.cardLabel")}
       onPointerDown={(e) => {
         if (!e.isPrimary) return;
@@ -138,38 +189,41 @@ function Card({ character: id, imposter }: { character: string; imposter: boolea
       onBlur={hide}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {held ? (
-        <span className="card-face" data-testid="card-face">
-          <span className="relative block aspect-square w-full overflow-hidden rounded-md">
-            {c.image ? <img src={c.image} alt="" className="size-full object-cover" draggable={false} /> : <Placeholder name={c.name} />}
-            {imposter && (
-              <span className="stamp" data-testid="imposter">
-                {t("round.imposter")}
-              </span>
-            )}
-          </span>
-          <span className="flex flex-1 flex-col items-center justify-center text-center">
-            <span className="font-display text-[1.875rem] leading-tight font-bold text-balance" data-testid="card-name">
-              {c.name}
-            </span>
-          </span>
-        </span>
-      ) : (
+      {!held ? (
         <span className="card-back">
           <HoldGlyph />
           <span className="font-display text-2xl font-bold">{t("round.hold")}</span>
           <span className="text-sm opacity-85">{t("round.holdHint")}</span>
+        </span>
+      ) : layout ? (
+        // The same card art for everyone: the picture in its window, the name on its nameplate.
+        <span className="card-face card-art" data-testid="card-face">
+          <img src={CARD_ART} alt="" className="absolute inset-0 size-full" draggable={false} />
+          <span className="absolute overflow-hidden" style={box(layout.window)}>
+            {picture}
+          </span>
+          <span className="card-plate" style={box(layout.nameplate)}>
+            {name}
+          </span>
+        </span>
+      ) : (
+        <span className="card-face" data-testid="card-face">
+          <span className="relative block aspect-square w-full overflow-hidden rounded-md">{picture}</span>
+          <span className="flex flex-1 flex-col items-center justify-center text-center">{name}</span>
         </span>
       )}
     </button>
   );
 }
 
+const CARD_ART = "/art/card.webp";
+const box = (b: { x: number; y: number; w: number; h: number }) => ({ left: `${b.x}%`, top: `${b.y}%`, width: `${b.w}%`, height: `${b.h}%` });
+
 /** The one matte placeholder: a silhouette carrying the character's initial. */
 function Placeholder({ name }: { name: string }) {
   const initial = [...name.trim()][0]?.toUpperCase() ?? "?";
   return (
-    <svg viewBox="0 0 100 100" className="size-full" aria-hidden>
+    <svg viewBox="0 0 100 100" className="size-full" preserveAspectRatio="xMidYMid slice" aria-hidden>
       <rect width="100" height="100" fill="#e2d5b6" />
       <circle cx="50" cy="47" r="15" fill="#a3ae93" />
       <path d="M16 100c0-18 15-31 34-31s34 13 34 31z" fill="#a3ae93" />

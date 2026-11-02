@@ -1,10 +1,22 @@
-# Vote Out the Imposter
+# Doppel
 
 A PolyHydra Free-To-Play party game for one room of phones. Everyone joins a room on
 their own phone. When the host starts a round, everyone gets the same character except
 one random player, the **imposter**, who gets a different but related character and an
 "Imposter" label. Each phone shows only its own card, and only while it is held down.
-Clues, discussion and the vote all happen out loud, in person.
+Clues, discussion and the vote all happen out loud, in person. The host can run an optional
+round timer.
+
+The game was first called "Vote Out the Imposter". The database still uses the `imposter`
+schema and its table names, so the rename needed no migration.
+
+| Main menu | Game room | Card | Imposter's card |
+| --- | --- | --- | --- |
+| ![Main menu](docs/screens/menu-390.jpg) | ![Game room](docs/screens/room-390.jpg) | ![Card](docs/screens/card-390.jpg) | ![Imposter's card](docs/screens/card-imposter-390.jpg) |
+
+Desktop (1440 × 900): [main menu](docs/screens/menu-1440.jpg), [game room](docs/screens/room-1440.jpg),
+[card](docs/screens/card-1440.jpg), [imposter's card](docs/screens/card-imposter-1440.jpg).
+`npm run screens` retakes all eight (phone 390 × 844 and desktop) against the local Supabase.
 
 Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4 and Supabase (the shared
 PolyHydra project). Everything runs on free tiers: Vercel Hobby and Supabase Free.
@@ -13,10 +25,12 @@ PolyHydra project). Everything runs on free tiers: Vercel Hobby and Supabase Fre
 src/server/auth.ts        sign-in: the one module the PolyHydra hand-off will replace
 src/server/supabase.ts    server-side Supabase clients (the only place the service-role key is used)
 src/components/useRoom.ts the phone's view of its room: heartbeat, Realtime ping, reconnect
-src/components/*.tsx      screens: main menu, game room, round (the hold-to-reveal card)
+src/components/*.tsx      screens: main menu, game room, round (the hold-to-reveal card, the timer)
+src/lib/sound.ts          the timer's tick and chime (host's phone only)
 src/lib/i18n.ts           English and Burmese text (Burmese is a draft, see "Owner steps")
 supabase/migrations/      the imposter schema: tables, RLS and every state-changing function
-data/                     characters.json and pairs.json (editable)
+data/                     characters.json and pairs.json (editable); art.json and card-layout.json (npm run art)
+scripts/art.mjs           npm run art: icons, menu background and card art from assets/brand/
 tests/db/                 RLS privacy and room-rule tests on a real Postgres (PGlite, no Docker)
 tests/e2e/                Playwright, four browser contexts, against a local Supabase
 ```
@@ -47,7 +61,13 @@ npm test              # unit tests, the RLS privacy tests and the room rules (PG
 npm run data:check
 npm run e2e           # Playwright; needs `npx supabase start` (it refuses any non-local Supabase)
 npm run check         # lint + typecheck + test + data:check
+npm run screens       # retakes the README screenshots (local Supabase too)
 ```
+
+The local stack uses ports 563xx (API on `http://127.0.0.1:56321`), not Supabase's default
+543xx, because Windows reserves 54304–54403 on the owner's machine. If `npx supabase start` still
+says "ports are not available", `netsh interface ipv4 show excludedportrange protocol=tcp` lists
+what Windows has reserved; pick another range in `supabase/config.toml`.
 
 ## Supabase setup (the shared PolyHydra project)
 
@@ -56,8 +76,9 @@ recent pairs and pairs), with RLS on every table. It only **reads** the shared
 `public.profiles` table and uses the shared sign-in lock (`public.login_locks`, `public.login_fail`).
 It never creates, changes or approves accounts.
 
-1. **Run the migration.** In the Supabase dashboard → SQL Editor, paste and run
-   `supabase/migrations/20261102000001_imposter.sql` once. (Don't use `supabase db push` here:
+1. **Run the migrations, in order.** In the Supabase dashboard → SQL Editor, paste and run
+   `supabase/migrations/20261102000001_imposter.sql` once, then `20261102000002_timer.sql` once
+   (if you already ran the first, run only the second). (Don't use `supabase db push` here:
    the shared project's migration history belongs to The Gilded Delve's repository.)
    It also enables the `pg_cron` extension (available on the Free plan) and schedules an hourly
    job, `imposter-cleanup`, that deletes rooms idle for 6 hours or more. Check it afterwards with
@@ -87,6 +108,54 @@ It never creates, changes or approves accounts.
    Node.js 24 in Settings → General).
 2. Add the three environment variables above to Production and Preview.
 3. Deploy. Every push to `main` redeploys.
+
+## Round timer (optional, host only)
+
+This replaces "no timers" from the original brief.
+
+- **In the game room** the host picks the length: Off, 1, 2, 3 or 5 minutes (2 by default, kept
+  for the room). Everyone sees the setting.
+- **During a round** the host has Start timer, then +30 s and Stop. There is no pause, and the
+  timer never starts on its own. Restart (and End) clears it.
+- **Every phone** shows a small countdown bar above the card (never over the card or the place
+  you hold) and "Time's up" at 0.
+- **Timing comes from the server.** `imposter.timer()` stores the end time, with the room row
+  locked, and only the host can call it. `my_state` also returns the server's clock, and each
+  phone corrects for its own clock's difference (the most exact of its last 8 heartbeats) and
+  counts down to that end time. Phones agree to within about half a second (the e2e test sets
+  clocks seconds apart and checks this), and a phone that reconnects or refreshes shows the right
+  time straight away.
+- **Sound is on the host's phone only.** It plays a soft tick for each of the last 5 seconds,
+  then a short chime and a vibration at 0. The host's Start tap unlocks the audio. A "Timer
+  sound" switch in the game room (host only) turns it off or on, and each device remembers it.
+  Other phones stay silent.
+  If the host's page is reloaded mid-countdown, it stays silent until the host taps +30 s (or Start
+  on the next timer), because browsers only play sound after a tap.
+
+## Art
+
+The originals go in `assets/brand/` (kept out of git): `icon.png`, `icon-simple.png`,
+`menu-bg.png` and `card.png`. Run `npm run art` (sharp) and commit what it writes:
+
+| From | Makes |
+| --- | --- |
+| `icon-simple.png` | favicon at 16 and 32 px (`public/icons/`, and inside `public/favicon.ico`) |
+| `icon.png` | 48 px (in `favicon.ico`), 180 (`apple-touch-icon.png`), 192 and 512 px; the white outside the rounded corners becomes transparent |
+| `menu-bg.png` | `public/art/menu-720.webp` and `menu-1152.webp` (srcset), plus its darkest walnut colour (`data/art.json`) |
+| `card.png` | `public/art/card.webp` (trimmed, corners transparent) and `data/card-layout.json` |
+
+- **The PWA manifest** (`src/app/manifest.ts`, name "Doppel") lists the 192 and 512 px icons.
+- **The menu background** is on the main menu, the game room and "Round in progress": cover,
+  centred, never stretched. On wide screens the app stays phone-width in the middle, and the sides
+  use the walnut colour. Images are never enlarged: today's `menu-bg.png` is 941 px wide, so
+  `menu-1152.webp` is 941 px, and the srcset says so.
+- **The card.** The script finds the flat grey window and the cream nameplate on its own and saves
+  them as percentages. The card draws the character's image (or the placeholder) in the window
+  and the name on the nameplate. It is the same card for everyone, with the Imposter stamp drawn
+  in code.
+- **Without the files** (or before `npm run art`), everything keeps its placeholder: no
+  background, the plain cream card and no icons. `next.config.ts` checks which files exist, so the
+  build never breaks.
 
 ## Characters and images
 
@@ -134,6 +203,7 @@ at once can't break a room (`tests/db/rules.test.ts` covers each):
 - Joining during a round queues you ("Round in progress, you'll join next round"); Restart adds you.
 - Removed players can't rejoin that room (checked by account).
 - One room at a time per account; creating or joining another leaves the first.
+- The round timer: only the host sets, starts, extends or stops it; Restart clears it.
 - A host away for 3 minutes (in the game room or a round) hands the role to the longest-connected
   player ("<name> is now the host"); a host who leaves hands it over at once. Phones keep their
   screen on in the game room and during rounds (Wake Lock API, where supported), so a phone left
@@ -159,10 +229,13 @@ at once can't break a room (`tests/db/rules.test.ts` covers each):
 
 ## Owner steps
 
-1. Run the migration on the shared project (it also schedules the hourly `pg_cron` sweep; check
-   `cron.job`), expose `imposter`, and run `npm run data:sync` (see "Supabase setup").
+1. Run the migrations on the shared project: the first (it also schedules the hourly `pg_cron`
+   sweep; check `cron.job`) if you haven't yet, then `20261102000002_timer.sql`. Expose
+   `imposter`, and run `npm run data:sync` (see "Supabase setup").
 2. Create the private GitHub repo and push, then create the Vercel project and add the three
    environment variables.
-3. Review the Burmese text in `src/lib/i18n.ts` (every line is a draft).
+3. Review the Burmese text in `src/lib/i18n.ts` (every line is a draft, including the new timer lines).
 4. Replace or extend the seed characters and pairs; add images when you have them.
-5. Add the game to the PolyHydra hub (`src/lib/games.ts` there) with its `playUrl`.
+5. Add the game to the PolyHydra hub (`src/lib/games.ts` there) with its `playUrl`, as "Doppel".
+6. When the art changes, put the new originals in `assets/brand/`, run `npm run art`, and commit
+   the output.

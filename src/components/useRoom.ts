@@ -46,6 +46,21 @@ const subscribeOnline = (cb: () => void) => {
 
 let noticeSeq = 0;
 
+/**
+ * The server's clock, from each my_state answer: offset = server time - the midpoint of the
+ * request. The sample with the shortest round trip of the last 8 is the most exact (its error
+ * is at most half that round trip), so every phone counts down to the same instant.
+ */
+const samples: { rtt: number; offset: number }[] = [];
+let offset = 0;
+function clockSample(sent: number, received: number, serverNow: number) {
+  samples.push({ rtt: received - sent, offset: serverNow - (sent + received) / 2 });
+  if (samples.length > 8) samples.shift();
+  offset = samples.reduce((best, s) => (s.rtt < best.rtt ? s : best)).offset;
+}
+/** Now, on the server's clock (ms). */
+export const serverNow = () => Date.now() + offset;
+
 export function useRoom() {
   const [state, setState] = useState<MyState | null>(null);
   const [fetchOk, setFetchOk] = useState(true);
@@ -73,7 +88,9 @@ export function useRoom() {
     try {
       do {
         again.current = false;
+        const sent = Date.now();
         const { data, error } = await browserClient().rpc("my_state", { p_room: lastRoom.get() });
+        const received = Date.now();
         if (error) {
           if (error.message === "not_signed_in") return window.location.replace("/sign-in");
           // Banned or unapproved since sign-in: the page says so.
@@ -84,6 +101,7 @@ export function useRoom() {
         setFetchOk(true);
         const next = data as MyState;
         if (next.status === "in_room") {
+          clockSample(sent, received, next.now);
           lastRoom.set(next.room.id);
           const changed = next.room.host_changed_at;
           if (changed && changed !== hostNotice.current) {

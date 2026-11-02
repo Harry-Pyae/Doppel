@@ -1,4 +1,4 @@
--- Vote Out the Imposter. Everything this game owns lives in the `imposter` schema.
+-- Doppel (first named "Vote Out the Imposter"). Everything this game owns lives in the `imposter` schema.
 -- Shared PolyHydra tables (public.profiles) are only read here, never written.
 --
 -- Privacy (README "Privacy"): clients read nothing directly except their own

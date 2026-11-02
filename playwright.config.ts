@@ -15,6 +15,8 @@ const port = 3100;
 export default defineConfig({
   testDir: "tests/e2e",
   testMatch: "**/*.e2e.ts",
+  // The README screenshots run only through `npm run screens`.
+  grepInvert: process.env.npm_lifecycle_event === "screens" ? undefined : /@screens/,
   globalSetup: "./tests/e2e/setup.ts",
   // Every test shares the four test accounts, so they run one at a time.
   workers: 1,

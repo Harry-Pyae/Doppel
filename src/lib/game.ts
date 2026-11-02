@@ -23,11 +23,16 @@ export function character(id: string): Character {
 }
 
 export type Player = { id: string; name: string; host: boolean; connected: boolean; waiting: boolean };
-export type Room = { id: string; code: string; phase: "lobby" | "round"; round: number; host: boolean; host_changed_at: string | null };
+/** The host's round timer: minutes 0 = Off. Times are the server's clock, in ms. */
+export type Timer = { minutes: number; started_at: number | null; ends_at: number | null };
+export const TIMER_MINUTES = [0, 1, 2, 3, 5] as const;
+export type Room = { id: string; code: string; phase: "lobby" | "round"; round: number; host: boolean; host_changed_at: string | null; timer: Timer };
 export type MyState =
   | { status: "none" | "removed" | "ended" }
   | {
       status: "in_room";
+      /** The server's clock when it answered (ms). */
+      now: number;
       room: Room;
       me: { id: string; waiting: boolean };
       players: Player[];

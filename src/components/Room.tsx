@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { MAX_PLAYERS, MIN_PLAYERS, type MyState, type Player } from "@/lib/game";
+import { MAX_PLAYERS, MIN_PLAYERS, TIMER_MINUTES, type MyState, type Player } from "@/lib/game";
+import { setSoundOn, soundOn } from "@/lib/sound";
 import type { Act, Notify } from "./App";
 import { Confirm } from "./Confirm";
 import { useT } from "./Locale";
@@ -84,6 +85,8 @@ export function Room({ state, act, notify }: { state: InRoom; act: Act; notify: 
         </ul>
       </section>
 
+      <TimerSetting room={room} busy={busy} run={run} />
+
       <div className="mt-auto flex flex-col gap-2 pt-2">
         {room.host ? (
           <>
@@ -111,6 +114,61 @@ export function Room({ state, act, notify }: { state: InRoom; act: Act; notify: 
         }}
       />
     </>
+  );
+}
+
+/** The round timer's length: the host picks it, everyone sees it. */
+function TimerSetting({ room, busy, run }: { room: InRoom["room"]; busy: boolean; run: (fn: string, args?: Record<string, unknown>) => void }) {
+  const t = useT();
+  const label = (m: number) => (m === 0 ? t("timer.off") : t("timer.minutes", { n: m }));
+  // Remembered on this device; read once (this screen only renders in the browser).
+  const [sound, setSound] = useState(soundOn);
+  const minutes = room.timer.minutes;
+  return (
+    <section className="panel px-5 py-4" data-testid="timer-setting">
+      <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3">
+        <h2 className="font-display text-xl font-bold" id="timer-label">
+          {t("timer.label")}
+        </h2>
+        {!room.host ? (
+          <span className="font-bold" data-testid="timer-minutes">
+            {label(minutes)}
+          </span>
+        ) : (
+          minutes > 0 && (
+            <label className="flex items-center gap-2.5 text-sm font-bold text-muted">
+              {t("timer.sound")}
+              <input
+                type="checkbox"
+                role="switch"
+                className="switch"
+                checked={sound}
+                onChange={(e) => {
+                  setSound(e.target.checked);
+                  setSoundOn(e.target.checked);
+                }}
+              />
+            </label>
+          )
+        )}
+      </div>
+      {room.host && (
+        <div className="seg mt-2 grid grid-cols-5" role="radiogroup" aria-labelledby="timer-label">
+          {TIMER_MINUTES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={minutes === m}
+              disabled={busy}
+              onClick={() => minutes !== m && run("set_timer", { p_room: room.id, p_minutes: m })}
+            >
+              {label(m)}
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

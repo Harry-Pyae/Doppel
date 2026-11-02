@@ -1,9 +1,24 @@
-import { readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import type { NextConfig } from "next";
 
 // Character images that exist (public/characters/<id>.webp); the rest use the placeholder.
 // Read at build (and dev start), so a dropped-in image needs a redeploy or a dev restart.
 const images = readdirSync("public/characters").filter((f) => f.endsWith(".webp"));
+
+// The processed art (npm run art), only where its files exist; the rest keeps the placeholders.
+const json = (file: string) => {
+  try {
+    return JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    return undefined;
+  }
+};
+const made = json("data/art.json") ?? {};
+const art = {
+  icons: made.icons && existsSync("public/icons/icon-192.png") ? true : undefined,
+  menu: made.menu?.files?.every((f: { src: string }) => existsSync(`public${f.src}`)) ? made.menu : undefined,
+  card: existsSync("public/art/card.webp") ? json("data/card-layout.json") : undefined,
+};
 
 const production = process.env.NODE_ENV === "production";
 const supabase = (() => {
@@ -31,7 +46,7 @@ const csp = [
 const nextConfig: NextConfig = {
   // A second build folder lets the end-to-end server run beside a dev server.
   distDir: process.env.NEXT_DIST_DIR || ".next",
-  env: { NEXT_PUBLIC_CHARACTER_IMAGES: images.join(",") },
+  env: { NEXT_PUBLIC_CHARACTER_IMAGES: images.join(","), NEXT_PUBLIC_ART: JSON.stringify(art) },
   poweredByHeader: false,
   devIndicators: false,
   async headers() {

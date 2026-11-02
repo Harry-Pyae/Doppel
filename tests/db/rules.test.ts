@@ -5,7 +5,16 @@ import { addPairs, addUser, call, freshDb, type Db } from "./db";
 type Player = { id: string; name: string; host: boolean; connected: boolean; waiting: boolean };
 type State = {
   status: string;
-  room: { id: string; code: string; phase: string; round: number; host: boolean; host_changed_at: string | null };
+  now: number;
+  room: {
+    id: string;
+    code: string;
+    phase: string;
+    round: number;
+    host: boolean;
+    host_changed_at: string | null;
+    timer: { minutes: number; started_at: number | null; ends_at: number | null };
+  };
   me: { id: string; waiting: boolean };
   players: Player[];
   card: { character: string; imposter: boolean } | null;
@@ -227,6 +236,82 @@ describe("players leaving", () => {
     await call(db, users[1], "leave_room");
     await call(db, users[2], "leave_room");
     expect((await db.query("select * from imposter.rooms")).rows).toEqual([]);
+  });
+});
+
+describe("round timer", () => {
+  test("2 minutes by default; only the host sets it, to Off, 1, 2, 3 or 5 minutes; everyone sees it", async () => {
+    const r = await room(3);
+    expect((await state(users[1])).room.timer).toEqual({ minutes: 2, started_at: null, ends_at: null });
+    await expect(call(db, users[1], "set_timer", r.id, 5)).rejects.toThrow(/not_host/);
+    await expect(call(db, users[0], "set_timer", r.id, 4)).rejects.toThrow(/bad_timer/);
+    for (const m of [0, 1, 3, 5]) {
+      await call(db, users[0], "set_timer", r.id, m);
+      expect((await state(users[2])).room.timer.minutes).toBe(m);
+    }
+  });
+
+  test("only the host starts, adds to and stops it; only during a round; never on its own", async () => {
+    const r = await room(3);
+    await expect(call(db, users[0], "timer", r.id, "start")).rejects.toThrow(/no_round/);
+    await call(db, users[0], "start_round", r.id);
+    expect((await state(users[1])).room.timer.ends_at).toBeNull();
+    for (const action of ["start", "add", "stop"]) await expect(call(db, users[1], "timer", r.id, action)).rejects.toThrow(/not_host/);
+    await expect(call(db, users[0], "timer", r.id, "add")).rejects.toThrow(/timer_not_running/);
+
+    await call(db, users[0], "timer", r.id, "start");
+    let s = await state(users[1]);
+    const { started_at, ends_at } = s.room.timer;
+    expect(ends_at! - started_at!).toBe(120_000);
+    expect(Math.abs(ends_at! - 120_000 - s.now)).toBeLessThan(2_000);
+    // Start again while it runs: nothing changes.
+    await call(db, users[0], "timer", r.id, "start");
+    expect((await state(users[2])).room.timer.ends_at).toBe(ends_at);
+
+    await call(db, users[0], "timer", r.id, "add");
+    s = await state(users[2]);
+    expect(s.room.timer.ends_at).toBe(ends_at! + 30_000);
+    expect(s.room.timer.started_at).toBe(started_at);
+
+    // Once time is up, +30 s counts from now.
+    await db.query("update imposter.rooms set timer_ends_at = now() - interval '10 seconds' where id = $1", [r.id]);
+    await call(db, users[0], "timer", r.id, "add");
+    s = await state(users[1]);
+    expect(s.room.timer.ends_at! - s.now).toBeGreaterThan(28_000);
+    expect(s.room.timer.ends_at! - s.room.timer.started_at!).toBe(30_000);
+
+    await call(db, users[0], "timer", r.id, "stop");
+    expect((await state(users[1])).room.timer).toEqual({ minutes: 2, started_at: null, ends_at: null });
+  });
+
+  test("Off cannot be started", async () => {
+    const r = await room(3);
+    await call(db, users[0], "set_timer", r.id, 0);
+    await call(db, users[0], "start_round", r.id);
+    await expect(call(db, users[0], "timer", r.id, "start")).rejects.toThrow(/timer_off/);
+  });
+
+  test("Restart clears it (the length is kept); End removes it with the room", async () => {
+    const r = await room(3);
+    await call(db, users[0], "set_timer", r.id, 3);
+    await call(db, users[0], "start_round", r.id);
+    await call(db, users[0], "timer", r.id, "start");
+    await call(db, users[0], "restart_round", r.id);
+    expect((await state(users[1])).room.timer).toEqual({ minutes: 3, started_at: null, ends_at: null });
+    await call(db, users[0], "start_round", r.id);
+    expect((await state(users[1])).room.timer.ends_at).toBeNull();
+    await call(db, users[0], "timer", r.id, "start");
+    await call(db, users[0], "end_room", r.id);
+    expect((await db.query("select * from imposter.rooms")).rows).toEqual([]);
+  });
+
+  test("players outside the room and anon cannot touch it", async () => {
+    const r = await room(3);
+    await call(db, users[0], "start_round", r.id);
+    await expect(call(db, users[5], "timer", r.id, "start")).rejects.toThrow(/not_in_room/);
+    await expect(call(db, users[5], "set_timer", r.id, 1)).rejects.toThrow(/not_in_room/);
+    await expect(call(db, null, "timer", r.id, "start")).rejects.toThrow(/permission denied/);
+    await expect(call(db, null, "set_timer", r.id, 1)).rejects.toThrow(/permission denied/);
   });
 });
 

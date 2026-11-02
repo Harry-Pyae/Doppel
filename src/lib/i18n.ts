@@ -4,7 +4,7 @@ export type Locale = "en" | "my";
 export const LOCALE_COOKIE = "locale";
 
 const en = {
-  "app.title": "Vote Out the Imposter",
+  "app.title": "Doppel",
   "app.edition": "PolyHydra · Free-To-Play",
   "lang.label": "Language",
 
@@ -38,6 +38,15 @@ const en = {
   "room.leave": "Leave room",
   "room.leaveTitle": "Leave this room?",
   "room.leaveOk": "Leave",
+
+  "timer.label": "Round timer",
+  "timer.off": "Off",
+  "timer.minutes": "{n} min",
+  "timer.sound": "Timer sound",
+  "timer.start": "Start timer",
+  "timer.add": "+30 s",
+  "timer.stop": "Stop",
+  "timer.up": "Time’s up",
 
   "round.label": "Round {n}",
   "round.hold": "Hold to reveal",
@@ -90,7 +99,7 @@ export type Key = keyof typeof en;
 
 // DRAFT (owner to review).
 const my: Record<Key, string> = {
-  "app.title": "Vote Out the Imposter",
+  "app.title": "Doppel",
   "app.edition": "PolyHydra · Free-To-Play",
   "lang.label": "ဘာသာစကား",
 
@@ -124,6 +133,15 @@ const my: Record<Key, string> = {
   "room.leave": "အခန်းမှ ထွက်မည်",
   "room.leaveTitle": "ဤအခန်းမှ ထွက်မလား။",
   "room.leaveOk": "ထွက်မည်",
+
+  "timer.label": "အကြိမ်ချိန်",
+  "timer.off": "ပိတ်",
+  "timer.minutes": "{n} မိနစ်",
+  "timer.sound": "အချိန်မှတ် အသံ",
+  "timer.start": "အချိန် စမှတ်မည်",
+  "timer.add": "+၃၀ စက္ကန့်",
+  "timer.stop": "ရပ်မည်",
+  "timer.up": "အချိန်ပြည့်ပြီ",
 
   "round.label": "အကြိမ် {n}",
   "round.hold": "ဖိထားပြီး ကြည့်ပါ",

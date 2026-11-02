@@ -1,0 +1,16 @@
+{
+  "icons": true,
+  "menu": {
+    "color": "#221007",
+    "files": [
+      {
+        "src": "/art/menu-720.webp",
+        "width": 720
+      },
+      {
+        "src": "/art/menu-1152.webp",
+        "width": 941
+      }
+    ]
+  }
+}
