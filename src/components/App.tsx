@@ -23,7 +23,7 @@ export function App({ name }: { name: string }) {
   const backdrop = !!art.menu && !!state && (!inRoom || inRoom.room.phase === "lobby" || (inRoom.me.waiting && !inRoom.room.reveal));
 
   return (
-    <main className="shell" data-art={backdrop || undefined}>
+    <main className="shell" data-art={backdrop || undefined} style={art.menu ? ({ "--walnut": art.menu.color } as React.CSSProperties) : undefined}>
       {backdrop && <Backdrop />}
       <div className="flex items-center justify-between gap-2">
         <Connection conn={conn} />
@@ -55,7 +55,8 @@ function Backdrop() {
       className="backdrop"
       src={files[0].src}
       srcSet={files.map((f) => `${f.src} ${f.width}w`).join(", ")}
-      sizes="(min-width: 30rem) 30rem, 100vw"
+      // Phone: the column; tablet: the whole screen; desktop: the left panel (its height x 0.56).
+      sizes="(min-width: 1024px) and (orientation: landscape) 56vh, 100vw"
       alt=""
       fetchPriority="high"
       draggable={false}
@@ -76,7 +77,7 @@ function Connection({ conn }: { conn: Conn }) {
 function Notices({ notices, dismiss }: { notices: Notice[]; dismiss: (id: number) => void }) {
   const t = useT();
   return (
-    <div aria-live="polite" className="pointer-events-none fixed inset-x-0 top-[calc(max(0.75rem,env(safe-area-inset-top))+3.25rem)] z-10 flex flex-col items-center gap-2 px-4">
+    <div aria-live="polite" className="notices pointer-events-none fixed inset-x-0 top-[calc(max(0.75rem,env(safe-area-inset-top))+3.25rem)] z-10 flex flex-col items-center gap-2 px-4">
       {notices.map((n) => (
         <button key={n.id} type="button" onClick={() => dismiss(n.id)} className="notice panel pointer-events-auto max-w-[28rem] px-4 py-3 text-left font-bold" data-testid="notice">
           {t(n.key, n.vars)}
@@ -101,7 +102,7 @@ function Menu({ name, act }: { name: string; act: Act }) {
   }
 
   return (
-    <>
+    <div className="screen" data-screen="menu">
       <Masthead />
       <section className="panel flex flex-col gap-4 p-5">
         <button className="btn w-full" disabled={busy} onClick={() => run("create_room")}>
@@ -168,6 +169,6 @@ function Menu({ name, act }: { name: string; act: Act }) {
           {t("menu.signOut")}
         </button>
       </footer>
-    </>
+    </div>
   );
 }

@@ -7,7 +7,7 @@ import { LanguageToggle, useT } from "./Locale";
 export function Masthead() {
   const t = useT();
   return (
-    <header className="flex flex-col items-center gap-1 pt-6 pb-2 text-center">
+    <header className="masthead flex flex-col items-center gap-1 pt-6 pb-2 text-center">
       <p className="text-xs font-bold tracking-[0.14em] text-muted uppercase">{t("app.edition")}</p>
       <h1 className="font-display text-[2.125rem] leading-[1.1] font-bold text-balance">{t("app.title")}</h1>
     </header>

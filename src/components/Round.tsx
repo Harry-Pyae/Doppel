@@ -47,7 +47,7 @@ export function Round({ state, act, notify }: { state: InRoom; act: Act; notify:
   const asked = ASK[last];
 
   return (
-    <>
+    <div className="screen" data-screen="round">
       <p className="pt-2 text-center text-xs font-bold tracking-[0.14em] text-muted uppercase">{t("round.label", { n: room.round })}</p>
       {reveal ? (
         <RevealView reveal={reveal} />
@@ -58,7 +58,7 @@ export function Round({ state, act, notify }: { state: InRoom; act: Act; notify:
         </>
       )}
 
-      <div className="mt-auto flex flex-col gap-2 pt-2">
+      <div className="round-actions mt-auto flex flex-col gap-2 pt-2">
         {room.host && !reveal && timer.minutes > 0 && (
           <div className="grid grid-cols-2 gap-2">
             {timer.ends_at === null ? (
@@ -106,7 +106,7 @@ export function Round({ state, act, notify }: { state: InRoom; act: Act; notify:
         onCancel={() => setAsking(null)}
         onConfirm={() => run(asked.fn)}
       />
-    </>
+    </div>
   );
 }
 
@@ -114,7 +114,7 @@ export function Round({ state, act, notify }: { state: InRoom; act: Act; notify:
 export function Queued({ act }: { act: Act }) {
   const t = useT();
   return (
-    <>
+    <div className="screen" data-screen="queued">
       <section className="panel mt-8 flex flex-col items-center gap-2 p-6 text-center">
         <span className="dot animate-pulse" aria-hidden />
         <p className="font-display text-xl font-bold text-balance" data-testid="queued">
@@ -124,7 +124,7 @@ export function Queued({ act }: { act: Act }) {
       <div className="mt-auto">
         <LeaveButton act={act} />
       </div>
-    </>
+    </div>
   );
 }
 

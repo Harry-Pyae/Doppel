@@ -38,8 +38,8 @@ export function Room({ state, act, notify }: { state: InRoom; act: Act; notify: 
   }
 
   return (
-    <>
-      <section className="panel flex flex-col items-center gap-2 px-5 pt-5 pb-4 text-center">
+    <div className="screen" data-screen="room">
+      <section className="area-code panel flex flex-col items-center gap-2 px-5 pt-5 pb-4 text-center">
         <p className="text-xs font-bold tracking-[0.14em] text-muted uppercase">{t("room.code")}</p>
         <p className="tracked font-display pl-[0.2em] text-[3.25rem] leading-none font-bold tracking-[0.2em] tabular-nums" data-testid="room-code">
           {room.code}
@@ -49,7 +49,7 @@ export function Room({ state, act, notify }: { state: InRoom; act: Act; notify: 
         </button>
       </section>
 
-      <section className="panel p-5">
+      <section className="area-players panel p-5">
         <h2 className="flex items-baseline justify-between">
           <span className="font-display text-xl font-bold">{t("room.players")}</span>
           <span className="text-sm font-bold text-muted tabular-nums">
@@ -87,7 +87,7 @@ export function Room({ state, act, notify }: { state: InRoom; act: Act; notify: 
 
       <TimerSetting room={room} busy={busy} run={run} />
 
-      <div className="mt-auto flex flex-col gap-2 pt-2">
+      <div className="area-actions mt-auto flex flex-col gap-2 pt-2">
         {room.host ? (
           <>
             <button className="btn w-full" disabled={busy || missing > 0} onClick={() => run("start_round", { p_room: room.id })}>
@@ -113,7 +113,7 @@ export function Room({ state, act, notify }: { state: InRoom; act: Act; notify: 
           if (target) await run("remove_player", { p_room: room.id, p_user: target.id });
         }}
       />
-    </>
+    </div>
   );
 }
 
@@ -125,7 +125,7 @@ function TimerSetting({ room, busy, run }: { room: InRoom["room"]; busy: boolean
   const [sound, setSound] = useState(soundOn);
   const minutes = room.timer.minutes;
   return (
-    <section className="panel px-5 py-4" data-testid="timer-setting">
+    <section className="area-timer panel px-5 py-4" data-testid="timer-setting">
       <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-3">
         <h2 className="font-display text-xl font-bold" id="timer-label">
           {t("timer.label")}

@@ -31,12 +31,7 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, view
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   return (
-    // With the menu art, wide screens show its darkest walnut beside the phone-width column.
-    <html
-      lang={locale}
-      className={`${fraunces.variable} ${manrope.variable} ${myanmar.variable} antialiased`}
-      style={art.menu ? { backgroundColor: art.menu.color } : undefined}
-    >
+    <html lang={locale} className={`${fraunces.variable} ${manrope.variable} ${myanmar.variable} antialiased`}>
       <body>{children}</body>
     </html>
   );

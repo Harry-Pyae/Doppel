@@ -15,9 +15,19 @@ schema and its table names (the doppel is `is_imposter` there), so the rename ne
 | --- | --- | --- | --- |
 | ![Main menu](docs/screens/menu-390.jpg) | ![Game room](docs/screens/room-390.jpg) | ![Card](docs/screens/card-390.jpg) | ![Reveal](docs/screens/reveal-390.jpg) |
 
+Tablet (820 × 1180): [main menu](docs/screens/menu-820.jpg), [game room](docs/screens/room-820.jpg),
+[card](docs/screens/card-820.jpg), [reveal](docs/screens/reveal-820.jpg).
 Desktop (1440 × 900): [main menu](docs/screens/menu-1440.jpg), [game room](docs/screens/room-1440.jpg),
 [card](docs/screens/card-1440.jpg), [reveal](docs/screens/reveal-1440.jpg).
-`npm run screens` retakes all eight (phone 390 × 844 and desktop) against the local Supabase.
+`npm run screens` retakes all twelve against the local Supabase (`SCREENS_SIZES=1024x768,...` and
+`SCREENS_DIR` try other sizes without touching these).
+
+**Layouts.** Phones get one column. Tablets held upright get the table art across the whole
+screen, behind a wider column, with a larger title and card. Desktops, and tablets held sideways,
+get a split layout: the art fills a full-height panel on the left with "Doppel" set large on the
+wood, and the content sits on walnut to the right. The game room goes to two columns when there is
+room (players on the right), and the round is a wider stage: the card is sized to the screen's
+height, its buttons match its width, and the reveal shows both cards at full size.
 
 Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4 and Supabase (the shared
 PolyHydra project). Everything runs on free tiers: Vercel Hobby and Supabase Free.
@@ -147,8 +157,9 @@ The originals go in `assets/brand/` (kept out of git): `icon.png`, `icon-simple.
 
 - **The PWA manifest** (`src/app/manifest.ts`, name "Doppel") lists the 192 and 512 px icons.
 - **The menu background** is on the main menu, the game room and "Round in progress": cover,
-  centred, never stretched. On wide screens the app stays phone-width in the middle, and the sides
-  use the walnut colour. Images are never enlarged: today's `menu-bg.png` is 941 px wide, so
+  centred, never stretched: behind the column on phones, across the screen on tablets, and as the
+  left panel on desktops, whose content side uses the art's darkest walnut colour (see "Layouts"
+  above). Images are never enlarged: today's `menu-bg.png` is 941 px wide, so
   `menu-1152.webp` is 941 px, and the srcset says so.
 - **The card.** The script finds the flat grey window and the cream nameplate on its own and saves
   them as percentages. The card draws the character's image (or the placeholder) in the window

@@ -93,7 +93,7 @@ html[lang="my"] :not(.tracked) {
     0 0 8px rgb(20 10 4 / 0.85),
     0 1px 2px rgb(20 10 4 / 0.7);
 }
-.shell[data-art] > footer {
+.shell[data-art] footer {
   align-self: center;
   padding: 0 0.9rem;
   border-radius: 999px;
@@ -554,3 +554,130 @@ dialog.confirm:not([open])::backdrop {
   }
 }
 
+
+/* ---------- tablet and desktop ----------
+   Phone: every screen is one column (.screen adds no box). Tablet: the table art fills the
+   screen behind a wider column. Desktop (and tablets held sideways): the art is a full-height
+   panel on the left with the name on it, and the content sits on walnut beside it. These rules
+   are unlayered so they can override the utility classes. */
+.screen {
+  display: contents;
+}
+
+@media (min-width: 640px) {
+  .shell {
+    max-width: 36rem;
+    gap: 1.25rem;
+    padding-inline: max(1.5rem, env(safe-area-inset-left)) max(1.5rem, env(safe-area-inset-right));
+    --card-w: min(100%, 26rem, calc((100dvh - 22rem) * 0.72));
+  }
+  .backdrop {
+    left: 0;
+    translate: none;
+    width: 100%;
+  }
+  .masthead {
+    padding-top: 2.5rem;
+  }
+  .masthead h1 {
+    font-size: 3rem;
+  }
+  /* The round's buttons line up with the card. */
+  .round-actions {
+    width: var(--card-w);
+    margin-inline: auto;
+  }
+  /* Sign-in (and "can't play"): centred on the page. */
+  .shell > .masthead {
+    margin-top: auto;
+  }
+  .shell:has(> .masthead) > :last-child {
+    margin-bottom: auto;
+  }
+}
+
+@media (min-width: 1024px) and (orientation: landscape) {
+  .shell[data-art] {
+    /* the art's own proportions (941 x 1672), at full height */
+    --art-w: min(44vw, calc(100dvh * 0.5628));
+    --side: clamp(2rem, 4vw, 4rem);
+    max-width: none;
+    margin: 0;
+    padding-left: calc(var(--art-w) + var(--side));
+    padding-right: var(--side);
+    background: var(--walnut, #221007);
+    container-type: inline-size;
+    /* its own stacking context, so the art (z-index -1) paints above this background */
+    position: relative;
+    z-index: 0;
+  }
+  .shell[data-art] .backdrop {
+    width: var(--art-w);
+  }
+  /* The round: a wider stage, so the reveal's two cards are full size side by side. */
+  .shell:not([data-art]):has(.screen[data-screen="round"]) {
+    max-width: 60rem;
+  }
+  [data-testid="reveal"] > .grid {
+    grid-template-columns: repeat(2, minmax(0, var(--card-w)));
+    justify-content: center;
+    column-gap: 1.5rem;
+  }
+  .shell[data-art] .screen {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: 100%;
+    max-width: 30rem;
+    margin: auto;
+  }
+  .shell[data-art] .notices {
+    left: var(--art-w);
+  }
+  /* The name, large, on the plain wood in the middle of the table. */
+  .shell[data-art] .masthead {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--art-w);
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0 2rem;
+    pointer-events: none;
+  }
+  .shell[data-art] .masthead h1 {
+    font-size: clamp(3.5rem, 8vh, 5.5rem);
+    letter-spacing: -0.01em;
+  }
+  .shell[data-art] .masthead p {
+    font-size: 0.875rem;
+  }
+}
+
+/* The game room in two columns when the content side is wide enough. */
+@container (min-width: 46rem) {
+  .shell[data-art] .screen[data-screen="room"] {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "code players"
+      "timer players"
+      "actions players";
+    grid-template-rows: auto auto 1fr;
+    align-items: start;
+    gap: 1.25rem 1.5rem;
+    max-width: 60rem;
+  }
+  .area-code {
+    grid-area: code;
+  }
+  .area-players {
+    grid-area: players;
+  }
+  .area-timer {
+    grid-area: timer;
+  }
+  .area-actions {
+    grid-area: actions;
+    padding-top: 0;
+  }
+}

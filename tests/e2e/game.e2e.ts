@@ -441,10 +441,12 @@ test("sign-in: only approved accounts get in, with the shared rules", async ({ p
 // npm run screens (only then): the README's screenshots, phone and desktop.
 test("screenshots for the README @screens", async ({ browser }) => {
   test.setTimeout(120_000);
-  const sizes = [
-    { width: 390, height: 844 },
-    { width: 1440, height: 900 },
-  ];
+  // Phone, tablet (portrait) and desktop; SCREENS_SIZES="1024x768,..." and SCREENS_DIR try others.
+  const sizes = (process.env.SCREENS_SIZES ?? "390x844,820x1180,1440x900").split(",").map((wh) => {
+    const [width, height] = wh.split("x").map(Number);
+    return { width, height };
+  });
+  const dir = process.env.SCREENS_DIR ?? "docs/screens";
   const shoot = async (page: Page, name: string, hold = false) => {
     for (const size of sizes) {
       await page.setViewportSize(size);
@@ -456,7 +458,7 @@ test("screenshots for the README @screens", async ({ browser }) => {
         await page.waitForFunction(() => [...document.images].every((i) => i.complete));
       }
       await page.waitForTimeout(400);
-      await page.screenshot({ path: `docs/screens/${name}-${size.width}.jpg`, type: "jpeg", quality: 82 });
+      await page.screenshot({ path: `${dir}/${name}-${size.width}.jpg`, type: "jpeg", quality: 82 });
       if (hold) await page.mouse.up();
     }
     await page.setViewportSize(sizes[0]);
