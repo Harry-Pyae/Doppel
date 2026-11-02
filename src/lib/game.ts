@@ -26,7 +26,18 @@ export type Player = { id: string; name: string; host: boolean; connected: boole
 /** The host's round timer: minutes 0 = Off. Times are the server's clock, in ms. */
 export type Timer = { minutes: number; started_at: number | null; ends_at: number | null };
 export const TIMER_MINUTES = [0, 1, 2, 3, 5] as const;
-export type Room = { id: string; code: string; phase: "lobby" | "round"; round: number; host: boolean; host_changed_at: string | null; timer: Timer };
+/** After the host's reveal: who the doppel was, and both characters (ids). */
+export type Reveal = { name: string; group: string; doppel: string };
+export type Room = {
+  id: string;
+  code: string;
+  phase: "lobby" | "round";
+  round: number;
+  host: boolean;
+  host_changed_at: string | null;
+  timer: Timer;
+  reveal: Reveal | null;
+};
 export type MyState =
   | { status: "none" | "removed" | "ended" }
   | {
@@ -36,5 +47,6 @@ export type MyState =
       room: Room;
       me: { id: string; waiting: boolean };
       players: Player[];
-      card: { character: string; imposter: boolean } | null;
+      /** Only this player's character: nobody is told who the doppel is. */
+      card: { character: string } | null;
     };

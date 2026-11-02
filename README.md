@@ -1,21 +1,22 @@
 # Doppel
 
 A PolyHydra Free-To-Play party game for one room of phones. Everyone joins a room on
-their own phone. When the host starts a round, everyone gets the same character except
-one random player, the **imposter**, who gets a different but related character and an
-"Imposter" label. Each phone shows only its own card, and only while it is held down.
-Clues, discussion and the vote all happen out loud, in person. The host can run an optional
-round timer.
+their own phone. When the host starts a round, everyone gets a character, but one random
+player, the **doppel**, secretly has a related but different one. **Nobody knows who the doppel
+is, not even the doppel**: every card looks the same, and shows only that player's character
+while it is held down. So everyone gives clues carefully and suspects everyone. The clues,
+discussion and vote all happen out loud, in person; then the host reveals who the doppel was.
+The host can also run an optional round timer.
 
 The game was first called "Vote Out the Imposter". The database still uses the `imposter`
-schema and its table names, so the rename needed no migration.
+schema and its table names (the doppel is `is_imposter` there), so the rename needed no migration.
 
-| Main menu | Game room | Card | Imposter's card |
+| Main menu | Game room | Card | Reveal |
 | --- | --- | --- | --- |
-| ![Main menu](docs/screens/menu-390.jpg) | ![Game room](docs/screens/room-390.jpg) | ![Card](docs/screens/card-390.jpg) | ![Imposter's card](docs/screens/card-imposter-390.jpg) |
+| ![Main menu](docs/screens/menu-390.jpg) | ![Game room](docs/screens/room-390.jpg) | ![Card](docs/screens/card-390.jpg) | ![Reveal](docs/screens/reveal-390.jpg) |
 
 Desktop (1440 × 900): [main menu](docs/screens/menu-1440.jpg), [game room](docs/screens/room-1440.jpg),
-[card](docs/screens/card-1440.jpg), [imposter's card](docs/screens/card-imposter-1440.jpg).
+[card](docs/screens/card-1440.jpg), [reveal](docs/screens/reveal-1440.jpg).
 `npm run screens` retakes all eight (phone 390 × 844 and desktop) against the local Supabase.
 
 Stack: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4 and Supabase (the shared
@@ -77,8 +78,8 @@ recent pairs and pairs), with RLS on every table. It only **reads** the shared
 It never creates, changes or approves accounts.
 
 1. **Run the migrations, in order.** In the Supabase dashboard → SQL Editor, paste and run
-   `supabase/migrations/20261102000001_imposter.sql` once, then `20261102000002_timer.sql` once
-   (if you already ran the first, run only the second). (Don't use `supabase db push` here:
+   `supabase/migrations/20261102000001_imposter.sql` once, then `20261102000002_timer.sql`, then
+   `20261102000003_reveal.sql` (skip the ones you have already run). (Don't use `supabase db push` here:
    the shared project's migration history belongs to The Gilded Delve's repository.)
    It also enables the `pg_cron` extension (available on the Free plan) and schedules an hourly
    job, `imposter-cleanup`, that deletes rooms idle for 6 hours or more. Check it afterwards with
@@ -151,8 +152,8 @@ The originals go in `assets/brand/` (kept out of git): `icon.png`, `icon-simple.
   `menu-1152.webp` is 941 px, and the srcset says so.
 - **The card.** The script finds the flat grey window and the cream nameplate on its own and saves
   them as percentages. The card draws the character's image (or the placeholder) in the window
-  and the name on the nameplate. It is the same card for everyone, with the Imposter stamp drawn
-  in code.
+  and the name on the nameplate. It is the same card for everyone, the doppel included: there is
+  no label or stamp, so no stamp area is needed. The reveal shows two smaller copies side by side.
 - **Without the files** (or before `npm run art`), everything keeps its placeholder: no
   background, the plain cream card and no icons. `next.config.ts` checks which files exist, so the
   build never breaks.
@@ -164,7 +165,7 @@ The originals go in `assets/brand/` (kept out of git): `icon.png`, `icon-simple.
   `image` is `"<id>.webp"` (or `null`).
 - `data/pairs.json`: related pairs by character id, e.g. `["taylor-swift", "ariana-grande"]`.
   A character may be in several pairs. Each round picks a pair, then randomly decides which side
-  the majority gets; the other side goes to the imposter.
+  the majority gets; the other side goes to the doppel.
 - **Images:** drop `public/characters/<id>.webp` (square, 512 × 512) into the folder and redeploy
   (or restart `npm run dev`). Until a file is there, the card shows the matte placeholder:
   a silhouette with the character's initial.
@@ -193,6 +194,17 @@ form POST, and this game's server exchanges it for a session. To switch:
 
 Nothing else in the game depends on how the session was made.
 
+## The reveal (host only)
+
+During a round the host has **Reveal** next to Restart and End. It asks first ("Reveal the
+doppel?", Cancel / Reveal). Then every phone shows "The doppel was <display name>" and both
+characters side by side, with their pictures and names: the group's character and the doppel's.
+`imposter.reveal()` stores this on the room (host only, room row locked), so a refresh or a
+reconnect shows it again. The round ends there and the timer stops. The host then uses Restart
+(back to the game room) or End, as before. The round's record (both characters and who had the
+odd one) is kept on the room when the round starts, so a doppel who left or was removed before
+the reveal is still named.
+
 ## Rules the code enforces
 
 All of these live in the database functions, which lock the room row first, so two taps
@@ -209,32 +221,38 @@ at once can't break a room (`tests/db/rules.test.ts` covers each):
   screen on in the game room and during rounds (Wake Lock API, where supported), so a phone left
   on the table doesn't count as away. A tab in the background does (the dot turns to "away"
   after about 25 seconds without a heartbeat).
-- Leave room asks first ("Leave this room?"); Remove, Restart and End ask too.
-- Each round: a random pair, a random majority side, a random imposter, avoiding the room's
+- Leave room asks first ("Leave this room?"); Remove, Reveal, Restart and End ask too.
+- Only the host can reveal, once per round; it stops the timer, and Restart clears it.
+- Each round: a random pair, a random majority side, a random doppel, avoiding the room's
   last 5 pairs (with 5 pairs or fewer, as many recent ones as possible while one is left).
 - Rooms are deleted when ended, or once idle for 6 hours or more (hourly `pg_cron` job, and on
   every create or join).
 
 ## Privacy
 
-- Cards live in `imposter.assignments`, written only by `imposter.start_round()`. RLS lets each
-  player read only their own row; anon reads nothing.
-- Rooms, members and pairs are not readable directly at all; the player list comes from
-  `imposter.my_state()`, which returns names, host and connection only, plus the caller's own card.
+- **Nobody's phone learns who the doppel is during a round, the host's included.** The server
+  records it (`imposter.assignments.is_imposter` and the room's round record), but players can't
+  read either: not the rooms, members, pairs or assignments tables, not even their own assignment
+  row. `imposter.my_state()` gives each phone its own character id only, which the phone turns
+  into a name and picture. It sends no role, flag or pair, and apart from that id every player's
+  answer is the same. The player list is names, host and connection only.
+- The only way to the role is the host's reveal, and after it everyone sees the same thing.
 - Realtime carries only an empty "changed" ping.
-- `tests/db/privacy.test.ts` proves a player can't read another player's assignment (as a player
-  or as anon, even with every table granted); the round e2e test records every API response and
-  Realtime frame on each phone and checks none contains the other side's character.
+- `tests/db/privacy.test.ts` proves this as a player and as anon, even with every table granted.
+  The round e2e test records every API response and Realtime frame on all four phones, the host's
+  included, until the reveal. It checks that none of them contains the other character, a role,
+  a flag or a pair, and that every card has the same layout and animation.
 - The service-role key stays on the server.
 
 ## Owner steps
 
 1. Run the migrations on the shared project: the first (it also schedules the hourly `pg_cron`
-   sweep; check `cron.job`) if you haven't yet, then `20261102000002_timer.sql`. Expose
+   sweep; check `cron.job`) if you haven't yet, then `20261102000002_timer.sql` and
+   `20261102000003_reveal.sql`. Expose
    `imposter`, and run `npm run data:sync` (see "Supabase setup").
 2. Create the private GitHub repo and push, then create the Vercel project and add the three
    environment variables.
-3. Review the Burmese text in `src/lib/i18n.ts` (every line is a draft, including the new timer lines).
+3. Review the Burmese text in `src/lib/i18n.ts` (every line is a draft, including the timer, How to play and reveal lines).
 4. Replace or extend the seed characters and pairs; add images when you have them.
 5. Add the game to the PolyHydra hub (`src/lib/games.ts` there) with its `playUrl`, as "Doppel".
 6. When the art changes, put the new originals in `assets/brand/`, run `npm run art`, and commit

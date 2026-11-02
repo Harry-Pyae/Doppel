@@ -431,14 +431,17 @@ dialog.confirm:not([open])::backdrop {
 }
 
 /* ---------- the card: hidden until held ---------- */
-.card {
+/* Its shape (the art's own proportions and corners come inline); also the reveal's two cards. */
+.card-shape {
   position: relative;
-  width: var(--card-w);
   aspect-ratio: 3 / 4;
   container-type: inline-size;
+  border-radius: 14px;
+}
+.card {
+  width: var(--card-w);
   margin: 0 auto;
   display: block;
-  border-radius: 14px;
   cursor: pointer;
   touch-action: none;
   user-select: none;
@@ -469,8 +472,8 @@ dialog.confirm:not([open])::backdrop {
   outline-offset: -10px;
 }
 .card-face {
-  gap: 0.75rem;
-  padding: 1rem;
+  gap: 4cqw;
+  padding: 5cqw;
   background: var(--color-paper);
   border: 1px solid var(--color-line);
   outline: 1px solid color-mix(in srgb, var(--color-line) 45%, transparent);
@@ -505,35 +508,35 @@ dialog.confirm:not([open])::backdrop {
   -webkit-line-clamp: 2;
   overflow: hidden;
   font-family: var(--font-display);
-  font-size: clamp(1.25rem, 8.5cqw, 1.875rem);
+  font-size: clamp(0.9375rem, 8.5cqw, 1.875rem);
   font-weight: 700;
   line-height: 1.15;
   text-align: center;
   text-wrap: balance;
   color: var(--color-ink);
 }
-.stamp {
-  position: absolute;
-  top: 1.5rem;
-  left: 50%;
-  translate: -50% 0;
-  rotate: -5deg;
-  padding: 0.3rem 0.9rem;
-  border: 2px solid var(--color-brick);
-  border-radius: 6px;
-  background: var(--color-paper);
-  color: var(--color-brick);
-  font-family: var(--font-display);
-  font-size: 1.375rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+/* The reveal: the line, then the two cards a beat apart (a rare moment, so a little slower). */
+.reveal-title {
+  animation: appear 220ms ease-out both;
+}
+.reveal-side .card-face {
+  animation: reveal-in 320ms var(--ease-out) 120ms backwards;
+}
+.reveal-side + .reveal-side .card-face {
+  animation-delay: 200ms;
+}
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
 }
 
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card-face {
+  .card-face,
+  .reveal-side .card-face {
     animation-name: fade;
   }
   .btn:active:not(:disabled),

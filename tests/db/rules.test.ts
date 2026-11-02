@@ -14,10 +14,11 @@ type State = {
     host: boolean;
     host_changed_at: string | null;
     timer: { minutes: number; started_at: number | null; ends_at: number | null };
+    reveal: { name: string; group: string; doppel: string } | null;
   };
   me: { id: string; waiting: boolean };
   players: Player[];
-  card: { character: string; imposter: boolean } | null;
+  card: { character: string } | null;
 };
 
 let db: Db;
@@ -236,6 +237,76 @@ describe("players leaving", () => {
     await call(db, users[1], "leave_room");
     await call(db, users[2], "leave_room");
     expect((await db.query("select * from imposter.rooms")).rows).toEqual([]);
+  });
+});
+
+describe("reveal", () => {
+  /** Who the doppel is this round (read as the database owner; no player can). */
+  const doppel = async (roomId: string) => (await cards(roomId)).find((c) => c.is_imposter)!;
+
+  test("only the host reveals, only during a round; everyone then sees the same reveal", async () => {
+    const r = await room(4);
+    await expect(call(db, users[0], "reveal", r.id)).rejects.toThrow(/no_round/);
+    await call(db, users[0], "start_round", r.id);
+    for (const u of users.slice(0, 4)) expect((await state(u)).room.reveal).toBeNull();
+    for (const u of users.slice(1, 4)) await expect(call(db, u, "reveal", r.id)).rejects.toThrow(/not_host/);
+    await expect(call(db, users[5], "reveal", r.id)).rejects.toThrow(/not_in_room/);
+    await expect(call(db, null, "reveal", r.id)).rejects.toThrow(/permission denied/);
+
+    const d = await doppel(r.id);
+    const group = (await cards(r.id)).find((c) => !c.is_imposter)!.character_id;
+    await call(db, users[0], "reveal", r.id);
+    const expected = { name: `Player${users.indexOf(d.user_id)}`, group, doppel: d.character_id };
+    for (const u of users.slice(0, 4)) {
+      const s = await state(u);
+      expect(s.room.reveal).toEqual(expected);
+      // The round is over but still on screen: Restart or End come next.
+      expect(s.room.phase).toBe("round");
+    }
+    // A second tap changes nothing.
+    await call(db, users[0], "reveal", r.id);
+    expect((await state(users[2])).room.reveal).toEqual(expected);
+  });
+
+  test("the reveal stops the timer, which cannot start again", async () => {
+    const r = await room(3);
+    await call(db, users[0], "start_round", r.id);
+    await call(db, users[0], "timer", r.id, "start");
+    await call(db, users[0], "reveal", r.id);
+    expect((await state(users[1])).room.timer).toEqual({ minutes: 2, started_at: null, ends_at: null });
+    await expect(call(db, users[0], "timer", r.id, "start")).rejects.toThrow(/revealed/);
+  });
+
+  test("a doppel who left or was removed before the reveal is still named", async () => {
+    for (const how of ["leave", "remove"]) {
+      const r = await room(4);
+      await call(db, users[0], "start_round", r.id);
+      // Make a non-host the doppel, so they can leave or be removed.
+      const target = users[2];
+      await db.query("update imposter.assignments set is_imposter = (user_id = $2) where room_id = $1", [r.id, target]);
+      await db.query("update imposter.rooms set round_doppel_id = $2 where id = $1", [r.id, target]);
+      if (how === "leave") await call(db, target, "leave_room");
+      else await call(db, users[0], "remove_player", r.id, target);
+      await call(db, users[0], "reveal", r.id);
+      expect((await state(users[1])).room.reveal?.name).toBe("Player2");
+      await call(db, users[0], "end_room", r.id);
+    }
+  });
+
+  test("Restart after a reveal returns everyone to the game room; the next round starts unrevealed", async () => {
+    const r = await room(3);
+    await call(db, users[0], "start_round", r.id);
+    await call(db, users[0], "reveal", r.id);
+    await expect(call(db, users[1], "restart_round", r.id)).rejects.toThrow(/not_host/);
+    await call(db, users[0], "restart_round", r.id);
+    for (const u of users.slice(0, 3)) {
+      const s = await state(u);
+      expect(s.room.phase).toBe("lobby");
+      expect(s.room.reveal).toBeNull();
+      expect(s.card).toBeNull();
+    }
+    await call(db, users[0], "start_round", r.id);
+    expect((await state(users[1])).room.reveal).toBeNull();
   });
 });
 

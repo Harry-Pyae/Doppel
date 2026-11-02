@@ -20,7 +20,7 @@ export function App({ name }: { name: string }) {
   // A locked phone would show as away; keep the screen on in the game room and during rounds.
   useWakeLock(!!inRoom);
   // The table art behind the main menu, the game room and "Round in progress" (not the card).
-  const backdrop = !!art.menu && !!state && (!inRoom || inRoom.room.phase === "lobby" || inRoom.me.waiting);
+  const backdrop = !!art.menu && !!state && (!inRoom || inRoom.room.phase === "lobby" || (inRoom.me.waiting && !inRoom.room.reveal));
 
   return (
     <main className="shell" data-art={backdrop || undefined}>
@@ -39,7 +39,7 @@ export function App({ name }: { name: string }) {
         <Menu name={name} act={act} />
       ) : inRoom.room.phase === "lobby" ? (
         <Room state={inRoom} act={act} notify={notify} />
-      ) : inRoom.me.waiting ? (
+      ) : inRoom.me.waiting && !inRoom.room.reveal ? (
         <Queued act={act} />
       ) : (
         <Round key={inRoom.room.round} state={inRoom} act={act} notify={notify} />

@@ -28,7 +28,8 @@ async function phones(browser: Browser, n = 4, from = 0, skews: number[] = []): 
       page.on("response", async (r) => {
         if (r.url().includes("/rest/v1/")) seen.push(await r.text().catch(() => ""));
       });
-      page.on("websocket", (ws) => ws.on("framereceived", (f) => seen.push(String(f.payload))));
+      // Supabase Realtime only (not the dev server's hot-reload socket, which carries the app's own code).
+      page.on("websocket", (ws) => ws.url().includes("/realtime/") && ws.on("framereceived", (f) => seen.push(String(f.payload))));
       await page.goto("/");
       await expect(page).toHaveURL(/\/sign-in$/);
       await page.getByLabel("Username").fill(a.username);
@@ -72,25 +73,32 @@ async function room(browser: Browser, n = 4) {
 
 const names = (p: Phone) => p.page.getByTestId("player-name").allTextContents();
 
-/** Holds the card down, reads it, lets go. */
-async function reveal(p: Phone) {
+/** Holds the card down, reads it, lets go. layout: the face's element tree and size, without the character. */
+async function peek(p: Phone) {
   const card = p.page.getByTestId("card");
   await expect(card).toBeVisible();
   await expect(p.page.getByTestId("card-name")).toHaveCount(0);
   await card.hover();
   await p.page.mouse.down();
+  const face = p.page.getByTestId("card-face");
   const name = (await p.page.getByTestId("card-name").textContent())!;
-  const imposter = (await p.page.getByTestId("imposter").count()) === 1;
+  const text = (await face.textContent())!;
+  const layout = await face.evaluate((el) => {
+    // Layout size (offset*), not the on-screen box, which the press animation scales.
+    const [width, height] = [(el as HTMLElement).offsetWidth, (el as HTMLElement).offsetHeight];
+    const tree = [...el.querySelectorAll("*")].map((e) => `${e.tagName}.${e.getAttribute("class") ?? ""}`);
+    return JSON.stringify({ width, height, tree, cls: el.className, anim: getComputedStyle(el).animation });
+  });
   await p.page.mouse.up();
   await expect(p.page.getByTestId("card-name")).toHaveCount(0);
-  return { name, imposter };
+  return { name, text, layout };
 }
 
-async function confirm(p: Phone, button: string) {
+async function confirm(p: Phone, button: string, ok = "Confirm") {
   await p.page.getByRole("button", { name: button, exact: true }).click();
   const dialog = p.page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Confirm" }).click();
+  await dialog.getByRole("button", { name: ok, exact: true }).click();
 }
 
 test("create, join and remove a player", async ({ browser }) => {
@@ -133,7 +141,7 @@ test("create, join and remove a player", async ({ browser }) => {
   await expect(host.page.getByTestId("player")).toHaveCount(2);
 });
 
-test("start a round: exactly one imposter, the others share one character; hold to reveal", async ({ browser }) => {
+test("start a round: one player secretly has a different character; nobody's card or phone says who", async ({ browser }) => {
   const all = await phones(browser);
   const host = all[0];
   const code = await createRoom(host);
@@ -146,21 +154,30 @@ test("start a round: exactly one imposter, the others share one character; hold 
   await expect(host.page.getByTestId("player")).toHaveCount(4);
   await host.page.getByRole("button", { name: "Start round" }).click();
 
-  const cards = [];
-  for (const p of all) cards.push(await reveal(p));
-  const imposters = cards.filter((c) => c.imposter);
-  expect(imposters).toHaveLength(1);
-  const others = new Set(cards.filter((c) => !c.imposter).map((c) => c.name));
-  expect(others.size).toBe(1);
-  expect(others.has(imposters[0].name)).toBe(false);
+  const cards: Awaited<ReturnType<typeof peek>>[] = [];
+  for (const p of all) cards.push(await peek(p));
+  // Exactly one player has the other character of the pair.
+  const count = (name: string) => cards.filter((c) => c.name === name).length;
+  const doppel = cards.find((c) => count(c.name) === 1)!;
+  const group = cards.find((c) => count(c.name) === 3)!;
+  expect(doppel).toBeDefined();
+  expect(group).toBeDefined();
+  // No card shows a role, and every card is laid out and animated the same.
+  for (const c of cards) {
+    // Only the name (and the placeholder's initial): no role, label or stamp.
+    expect(c.text.replace(c.name, "")).toBe(c.name[0]);
+    expect(c.layout.replaceAll(c.name, "")).toBe(cards[0].layout.replaceAll(cards[0].name, ""));
+  }
 
-  // No phone ever received the other side's character, in any response or Realtime frame.
+  // During the round no phone, the host's included, received the other character, a role, a
+  // flag or a pair, in any API response or Realtime frame.
   const idOf = (name: string) => characters.find((c) => c.name === name)!.id;
-  const [majority] = others;
   for (const [i, p] of all.entries()) {
-    const other = cards[i].imposter ? majority : imposters[0].name;
-    expect(p.seen.length).toBeGreaterThan(0);
-    expect(p.seen.join("\n")).not.toContain(idOf(other));
+    const other = cards[i].name === doppel.name ? group.name : doppel.name;
+    const seen = p.seen.join("\n");
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen).not.toContain(idOf(other));
+    expect(seen).not.toMatch(/imposter|doppel|is_imposter|"pair|"role"/i);
   }
 
   // Hold to reveal: only while held, and hidden again when the app goes to the background.
@@ -176,8 +193,62 @@ test("start a round: exactly one imposter, the others share one character; hold 
   await expect(host.page.getByRole("button", { name: "Restart" })).toBeVisible();
   for (const other of all.slice(1)) {
     await expect(other.page.getByText("Waiting for the host")).toBeVisible();
-    await expect(other.page.getByRole("button", { name: "Restart" })).toHaveCount(0);
-    await expect(other.page.getByRole("button", { name: "End", exact: true })).toHaveCount(0);
+    for (const name of ["Reveal", "Restart", "End"]) await expect(other.page.getByRole("button", { name, exact: true })).toHaveCount(0);
+  }
+});
+
+test("the host reveals the doppel: the same on every phone, through a refresh; Restart goes back to the game room", async ({ browser }) => {
+  const { all, code, host } = await room(browser);
+  await host.page.getByRole("button", { name: "Start round" }).click();
+  const cards: Awaited<ReturnType<typeof peek>>[] = [];
+  for (const p of all) cards.push(await peek(p));
+  const count = (name: string) => cards.filter((c) => c.name === name).length;
+  const doppelAt = cards.findIndex((c) => count(c.name) === 1);
+  const doppel = { player: all[doppelAt].name, character: cards[doppelAt].name };
+  const group = cards.find((c) => count(c.name) === 3)!.name;
+  await host.page.getByRole("button", { name: "Start timer" }).click();
+  await expect(all[1].page.getByTestId("timer")).toHaveAttribute("data-state", "running");
+
+  // Only the host may reveal: nobody else has the button, and the database refuses them too.
+  const ben = await api(ACCOUNTS[1]);
+  const { data: s } = await ben.rpc("my_state");
+  expect((await ben.rpc("reveal", { p_room: s.room.id })).error?.message).toBe("not_host");
+  await expect(all[1].page.getByTestId("reveal")).toHaveCount(0);
+
+  // It asks first; Cancel changes nothing.
+  await host.page.getByRole("button", { name: "Reveal", exact: true }).click();
+  const dialog = host.page.getByRole("dialog");
+  await expect(dialog.getByRole("heading")).toHaveText("Reveal the doppel?");
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(host.page.getByTestId("card")).toBeVisible();
+  await host.page.getByRole("button", { name: "Reveal", exact: true }).click();
+  await dialog.getByRole("button", { name: "Reveal", exact: true }).click();
+
+  const shows = async (p: Phone) => {
+    await expect(p.page.getByTestId("reveal-title")).toHaveText(`The doppel was ${doppel.player}`);
+    await expect(p.page.getByTestId("reveal-group").getByTestId("card-name")).toHaveText(group);
+    await expect(p.page.getByTestId("reveal-doppel").getByTestId("card-name")).toHaveText(doppel.character);
+    await expect(p.page.getByTestId("reveal-group")).toContainText("The group’s character");
+    await expect(p.page.getByTestId("reveal-doppel")).toContainText("The doppel’s character");
+    // The round is over: no card, no timer.
+    await expect(p.page.getByTestId("card")).toHaveCount(0);
+    await expect(p.page.getByTestId("timer")).toHaveCount(0);
+  };
+  for (const p of all) await shows(p);
+  await expect(host.page.getByRole("button", { name: "Reveal", exact: true })).toHaveCount(0);
+  await expect(host.page.getByRole("button", { name: "Start timer" })).toHaveCount(0);
+
+  // It is stored: a refresh shows it again.
+  await all[2].page.reload();
+  await shows(all[2]);
+  await host.page.reload();
+  await shows(host);
+
+  await confirm(host, "Restart");
+  for (const p of all) {
+    await expect(p.page.getByTestId("room-code")).toHaveText(code);
+    await expect(p.page.getByTestId("reveal")).toHaveCount(0);
   }
 });
 
@@ -235,9 +306,9 @@ test("the host disconnects; after 3 minutes (not before) the role passes", async
 test("refresh mid-round restores the room, the round and the card", async ({ browser }) => {
   const { all, code, host } = await room(browser, 3);
   await host.page.getByRole("button", { name: "Start round" }).click();
-  const before = await reveal(all[1]);
+  const before = await peek(all[1]);
   await all[1].page.reload();
-  expect(await reveal(all[1])).toEqual(before);
+  expect(await peek(all[1])).toEqual(before);
   // Closing the tab and opening the site again works the same, and the host keeps the menus.
   const reopened = await host.context.newPage();
   await host.page.close();
@@ -400,8 +471,9 @@ test("screenshots for the README @screens", async ({ browser }) => {
   await host.page.getByRole("button", { name: "Start round" }).click();
   await host.page.getByRole("button", { name: "Start timer" }).click();
   await host.page.waitForTimeout(5_000);
-  const cards = [];
-  for (const p of all) cards.push(await reveal(p));
-  await shoot(all[cards.findIndex((c) => !c.imposter)].page, "card", true);
-  await shoot(all[cards.findIndex((c) => c.imposter)].page, "card-imposter", true);
+  await shoot(all[1].page, "card", true);
+  await confirm(host, "Reveal", "Reveal");
+  await expect(all[1].page.getByTestId("reveal")).toBeVisible();
+  await all[1].page.waitForTimeout(800);
+  await shoot(all[1].page, "reveal");
 });
