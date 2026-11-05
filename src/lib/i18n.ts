@@ -19,7 +19,7 @@ const en = {
   "how.2": "The host starts a round. Hold to see your card, and keep it hidden from others.",
   "how.3": "Everyone gets a character, but one player secretly has a related but different one: the doppel.",
   "how.4": "Nobody knows if they’re the doppel, not even the doppel. Take turns giving one clue out loud, carefully, and suspect everyone.",
-  "how.5": "Vote out loud on who the doppel is. Then the host taps Reveal the doppel, and everyone sees who it was.",
+  "how.5": "Vote out loud on who the doppel is. With a timer, vote when time’s up; no timer: vote when everyone is ready. Then the host taps Reveal the doppel, and everyone sees who it was.",
 
   "room.code": "Room code",
   "room.copy": "Copy code",
@@ -41,7 +41,7 @@ const en = {
   "room.leaveOk": "Leave",
 
   "timer.label": "Round timer",
-  "timer.off": "Off",
+  "timer.off": "No timer",
   "timer.minutes": "{n} min",
   "timer.sound": "Timer sound",
   "timer.start": "Start timer",
@@ -121,8 +121,9 @@ const my: Record<Key, string> = {
   "how.2": "အိမ်ရှင်က အကြိမ်ကို စပါမည်။ ဖိထားပြီး သင့်ကတ်ကို ကြည့်ပါ၊ သူများကို မပြပါနှင့်။",
   "how.3": "လူတိုင်း ဇာတ်ကောင်တစ်ခုစီ ရပါမည်၊ သို့သော် ကစားသူတစ်ယောက်သည် ဆက်စပ်သော်လည်း မတူသော ဇာတ်ကောင်ကို လျှို့ဝှက်စွာ ရထားပါမည်- ၎င်းသည် doppel ဖြစ်သည်။",
   "how.4": "မိမိသည် doppel ဟုတ်မဟုတ် မည်သူမျှ မသိပါ၊ doppel ကိုယ်တိုင်ပင် မသိပါ။ အလှည့်ကျ အရိပ်အမြွက်တစ်ခုစီ သတိထား၍ အသံထွက် ပြောပါ၊ လူတိုင်းကို သံသယဝင်ပါ။",
-  // REVIEW: new wording, "Then the host taps Reveal the doppel, and everyone sees who it was."
-  "how.5": "doppel ဘယ်သူလဲ အသံထွက် မဲပေးပါ။ ပြီးလျှင် အိမ်ရှင်က doppel ကို ဖော်ပြမည် ကို နှိပ်ပြီး ဘယ်သူလဲ လူတိုင်း မြင်ရပါမည်။",
+  // REVIEW: new wording, "Vote out loud on who the doppel is. With a timer, vote when time’s up; no timer: vote
+  // when everyone is ready. Then the host taps Reveal the doppel, and everyone sees who it was."
+  "how.5": "doppel ဘယ်သူလဲ အသံထွက် မဲပေးပါ။ အချိန်မှတ် သုံးလျှင် အချိန်ပြည့်မှ မဲပေးပါ၊ အချိန်မှတ် မသုံးလျှင် လူတိုင်း အသင့်ဖြစ်မှ မဲပေးပါ။ ပြီးလျှင် အိမ်ရှင်က doppel ကို ဖော်ပြမည် ကို နှိပ်ပြီး ဘယ်သူလဲ လူတိုင်း မြင်ရပါမည်။",
 
   "room.code": "အခန်းကုဒ်",
   "room.copy": "ကုဒ် ကူးမည်",
@@ -145,7 +146,8 @@ const my: Record<Key, string> = {
   "room.leaveOk": "ထွက်မည်",
 
   "timer.label": "အကြိမ်ချိန်",
-  "timer.off": "ပိတ်",
+  // REVIEW: new wording, "No timer" (was "Off").
+  "timer.off": "အချိန်မှတ် မသုံး",
   "timer.minutes": "{n} မိနစ်",
   "timer.sound": "အချိန်မှတ် အသံ",
   "timer.start": "အချိန် စမှတ်မည်",

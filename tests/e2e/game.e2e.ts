@@ -476,7 +476,7 @@ test("round timer: the host's, the same on every phone (clocks off by seconds), 
   for (const p of others) expect(await sounds(p)).toEqual([]);
 });
 
-test("round timer: +30 s and Stop (host only), Restart clears it, Off hides it", async ({ browser }) => {
+test("round timer: +30 s and Stop (host only), Restart clears it", async ({ browser }) => {
   const { all, host } = await room(browser, 3);
   await host.page.getByRole("button", { name: "Start round" }).click();
   await host.page.getByRole("button", { name: "Start timer" }).click();
@@ -505,18 +505,64 @@ test("round timer: +30 s and Stop (host only), Restart clears it, Off hides it",
   await confirm(host, "Restart");
   await host.page.getByRole("button", { name: "Start round" }).click();
   for (const p of all) await expect(p.page.getByTestId("timer")).toHaveAttribute("data-state", "idle");
+});
 
-  // Off hides it everywhere.
-  await confirm(host, "Restart");
-  await host.page.getByRole("radio", { name: "Off" }).click();
-  await expect(all[1].page.getByTestId("timer-minutes")).toHaveText("Off");
-  await expect(host.page.getByRole("switch", { name: "Timer sound" })).toHaveCount(0);
+test("No timer: switching in the game room, no timer anywhere in the round, kept for the room; Reveal works as usual", async ({ browser }) => {
+  const { all, host } = await room(browser, 3);
+  const others = all.slice(1);
+  const radios = host.page.getByRole("radio");
+  const checked = (name: string) => expect(host.page.getByRole("radio", { name, exact: true })).toHaveAttribute("aria-checked", "true");
+  const seen = (text: string) => Promise.all(others.map((p) => expect(p.page.getByTestId("timer-minutes")).toHaveText(text)));
+  const sound = host.page.getByRole("switch", { name: "Timer sound" });
+
+  // No timer first, then the lengths; 2 minutes by default.
+  await expect(radios).toHaveText(["No timer", "1 min", "2 min", "3 min", "5 min"]);
+  await checked("2 min");
+  await seen("2 min");
+
+  // Switching both ways; everyone sees it, and the sound switch goes with the timer.
+  await host.page.getByRole("radio", { name: "No timer" }).click();
+  await checked("No timer");
+  await seen("No timer");
+  await expect(sound).toHaveCount(0);
+  await host.page.getByRole("radio", { name: "3 min" }).click();
+  await checked("3 min");
+  await seen("3 min");
+  await expect(sound).toBeVisible();
+  await host.page.getByRole("radio", { name: "No timer" }).click();
+  await seen("No timer");
+
+  // The round: the card as usual, and no bar, timer button or sound on any phone.
+  const noTimer = async () => {
+    for (const p of all) {
+      await expect(p.page.getByTestId("card")).toBeVisible();
+      await expect(p.page.getByTestId("timer")).toHaveCount(0);
+      await expect(p.page.getByRole("timer")).toHaveCount(0);
+      for (const name of ["Start timer", "+30 s", "Stop"]) await expect(p.page.getByRole("button", { name, exact: true })).toHaveCount(0);
+    }
+  };
   await host.page.getByRole("button", { name: "Start round" }).click();
+  await noTimer();
+  // The database refuses a timer too, even from the host.
+  const ann = await api(ACCOUNTS[0]);
+  const { data: s } = await ann.rpc("my_state");
+  expect((await ann.rpc("timer", { p_room: s.room.id, p_action: "start" })).error?.message).toBe("timer_off");
+
+  // Kept for the room: still No timer after a Restart and a refresh.
+  await confirm(host, "Restart");
+  await host.page.reload();
+  await checked("No timer");
+  await seen("No timer");
+  await host.page.getByRole("button", { name: "Start round" }).click();
+  await noTimer();
+
+  // Everyone says they're ready, votes out loud; the host reveals as usual.
+  await confirm(host, "Reveal the doppel", "Reveal");
   for (const p of all) {
-    await expect(p.page.getByTestId("card")).toBeVisible();
+    await expect(p.page.getByTestId("reveal-title")).toHaveText(/^The doppel was (Ann|Ben|Cho)$/);
     await expect(p.page.getByTestId("timer")).toHaveCount(0);
   }
-  await expect(host.page.getByRole("button", { name: "Start timer" })).toHaveCount(0);
+  for (const p of all) expect(await sounds(p)).toEqual([]);
 });
 
 test("sign-in: only approved accounts get in, with the shared rules", async ({ page }) => {

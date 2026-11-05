@@ -129,8 +129,11 @@ It never creates, changes or approves accounts.
 
 This replaces "no timers" from the original brief.
 
-- **In the game room** the host picks the length: Off, 1, 2, 3 or 5 minutes (2 by default, kept
+- **In the game room** the host picks: No timer, 1, 2, 3 or 5 minutes (2 by default, kept
   for the room). Everyone sees the setting.
+- **No timer** (`timer_minutes` 0): the round has no countdown bar, no timer buttons and no sound,
+  and the card screen is otherwise the same. Players talk until everyone says aloud they're ready,
+  vote in person, and the host taps Reveal the doppel as usual. How to play describes both ways.
 - **During a round** the host has Start timer, then +30 s and Stop. There is no pause, and the
   timer never starts on its own. Restart (and End) clears it.
 - **Every phone** shows a small countdown bar above the card (never over the card or the place
@@ -278,7 +281,7 @@ at once can't break a room (`tests/db/rules.test.ts` covers each):
    environment variables.
 3. Review the Burmese text in `src/lib/i18n.ts` (every line is a draft, including the timer, How to play and reveal lines).
    The newest lines are marked `// REVIEW` with the English beside them: "Hold to see your card",
-   "Reveal the doppel", "Reveal the doppel to everyone?", "Select the code to copy it", and How to
+   "Reveal the doppel", "Reveal the doppel to everyone?", "Select the code to copy it", "No timer", and How to
    play steps 2 and 5.
 4. Replace or extend the seed characters and pairs; add images when you have them.
 5. Add the game to the PolyHydra hub (`src/lib/games.ts` there) with its `playUrl`, as "Doppel".
