@@ -14,6 +14,7 @@ export function Room({ state, act, notify }: { state: InRoom; act: Act; notify: 
   const t = useT();
   const { room, players, me } = state;
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   // The last player asked about stays named while the overlay closes.
   const [target, setTarget] = useState<Player | null>(null);
@@ -27,26 +28,35 @@ export function Room({ state, act, notify }: { state: InRoom; act: Act; notify: 
     setBusy(false);
   }
 
+  // No clipboard (plain http, an old browser) or no permission: say how to copy it by hand.
   function copy() {
-    navigator.clipboard
-      ?.writeText(room.code)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1600);
-      })
-      .catch(() => {});
+    const done = (ok: boolean) => {
+      setCopied(ok);
+      setCopyFailed(!ok);
+      if (ok) setTimeout(() => setCopied(false), 1600);
+    };
+    if (!navigator.clipboard) return done(false);
+    navigator.clipboard.writeText(room.code).then(
+      () => done(true),
+      () => done(false),
+    );
   }
 
   return (
     <div className="screen" data-screen="room">
       <section className="area-code panel flex flex-col items-center gap-2 px-5 pt-5 pb-4 text-center">
         <p className="text-xs font-bold tracking-[0.14em] text-muted uppercase">{t("room.code")}</p>
-        <p className="tracked font-display pl-[0.2em] text-[3.25rem] leading-none font-bold tracking-[0.2em] tabular-nums" data-testid="room-code">
+        <p className="tracked font-display pl-[0.2em] text-[3.25rem] leading-none font-bold tracking-[0.2em] tabular-nums select-all" data-testid="room-code">
           {room.code}
         </p>
         <button className="btn btn-quiet btn-small mt-1 min-w-36" onClick={copy}>
           {copied ? t("room.copied") : t("room.copy")}
         </button>
+        {copyFailed && (
+          <p role="status" className="text-sm font-bold text-muted" data-testid="copy-failed">
+            {t("room.copyFailed")}
+          </p>
+        )}
       </section>
 
       <section className="area-players panel p-5">

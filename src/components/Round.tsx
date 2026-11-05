@@ -172,7 +172,7 @@ function CardFace({ c }: { c: Character }) {
     // The card art: the picture in its window, the name on its nameplate.
     <span className="card-face card-art" data-testid="card-face">
       <img src={CARD_ART} alt="" className="absolute inset-0 size-full" draggable={false} />
-      <span className="absolute overflow-hidden" style={box(layout.window)}>
+      <span className="absolute overflow-hidden" style={box(layout.window)} data-testid="card-picture">
         {picture}
       </span>
       <span className="card-plate" style={box(layout.nameplate)}>
@@ -181,7 +181,9 @@ function CardFace({ c }: { c: Character }) {
     </span>
   ) : (
     <span className="card-face" data-testid="card-face">
-      <span className="relative block aspect-square w-full overflow-hidden rounded-md">{picture}</span>
+      <span className="relative block aspect-square w-full overflow-hidden rounded-md" data-testid="card-picture">
+        {picture}
+      </span>
       <span className="flex flex-1 flex-col items-center justify-center text-center">{name}</span>
     </span>
   );

@@ -1,11 +1,24 @@
 // The whole game on four phones (four browser contexts), against the local Supabase.
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 import characters from "../../data/characters.json" with { type: "json" };
-import { ACCOUNTS, api, leaveRooms, PASSWORD, PENDING } from "./accounts";
+import { ACCOUNTS, api, leaveRooms, PASSWORD, PENDING, syncPairs } from "./accounts";
 
 /** seen: every API response body and Realtime frame this phone received. */
 type Phone = { page: Page; context: BrowserContext; name: string; seen: string[] };
 const contexts: BrowserContext[] = [];
+
+/** Thor's test portrait (playwright.config.ts lists thor.webp as present): a 512 px square WebP. */
+let portrait: Promise<Buffer> | undefined;
+const thor = () =>
+  (portrait ??= sharp(
+    Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"><rect width="512" height="512" fill="#5b6e8c"/><circle cx="256" cy="220" r="96" fill="#e9c9a3"/><path d="M80 512c0-110 80-180 176-180s176 70 176 180z" fill="#8c2f2f"/></svg>',
+    ),
+  )
+    .webp()
+    .toBuffer());
 
 /**
  * Signs accounts from..n-1 in, each on its own phone. skews: how far each phone's clock is off
@@ -23,6 +36,8 @@ async function phones(browser: Browser, n = 4, from = 0, skews: number[] = []): 
         w.sounds = [];
         addEventListener("doppel:sound", (e) => w.sounds.push((e as CustomEvent<string>).detail));
       });
+      const body = await thor();
+      await context.route("**/characters/thor.webp", (r) => r.fulfill({ contentType: "image/webp", body }));
       const page = await context.newPage();
       const seen: string[] = [];
       page.on("response", async (r) => {
@@ -73,25 +88,67 @@ async function room(browser: Browser, n = 4) {
 
 const names = (p: Phone) => p.page.getByTestId("player-name").allTextContents();
 
-/** Holds the card down, reads it, lets go. layout: the face's element tree and size, without the character. */
+/**
+ * Holds the card down, reads it, lets go: hidden before, shown while held, hidden after.
+ * frame: everything about the card but the character (its back, the face around the picture,
+ * their sizes and motion), the same whether the picture is a portrait or the placeholder.
+ */
 async function peek(p: Phone) {
   const card = p.page.getByTestId("card");
   await expect(card).toBeVisible();
   await expect(p.page.getByTestId("card-name")).toHaveCount(0);
+  const back = await card.evaluate((el) => ({
+    label: el.getAttribute("aria-label"),
+    text: el.textContent,
+    tree: [...el.querySelectorAll("*")].map((e) => `${e.tagName}.${e.getAttribute("class") ?? ""}`),
+  }));
   await card.hover();
   await p.page.mouse.down();
-  const face = p.page.getByTestId("card-face");
+  await expect(p.page.getByTestId("card-name")).toBeVisible();
   const name = (await p.page.getByTestId("card-name").textContent())!;
-  const text = (await face.textContent())!;
-  const layout = await face.evaluate((el) => {
-    // Layout size (offset*), not the on-screen box, which the press animation scales.
-    const [width, height] = [(el as HTMLElement).offsetWidth, (el as HTMLElement).offsetHeight];
-    const tree = [...el.querySelectorAll("*")].map((e) => `${e.tagName}.${e.getAttribute("class") ?? ""}`);
-    return JSON.stringify({ width, height, tree, cls: el.className, anim: getComputedStyle(el).animation });
+  const face = await p.page.getByTestId("card-face").evaluate(async (el) => {
+    const picture = el.querySelector<HTMLElement>("[data-testid=card-picture]")!;
+    const art = picture.firstElementChild!;
+    if (art instanceof HTMLImageElement) await art.decode().catch(() => {});
+    const plate = el.querySelector<HTMLElement>("[data-testid=card-name]")!.parentElement!;
+    // Layout sizes (offset*), not the on-screen boxes, which the press animation scales.
+    const size = (e: HTMLElement) => [e.offsetWidth, e.offsetHeight];
+    const [a, b] = [art.getBoundingClientRect(), picture.getBoundingClientRect()];
+    const motion = (e: Element) => [getComputedStyle(e).animation, getComputedStyle(e).transition].join(" | ");
+    const without = el.cloneNode(true) as HTMLElement;
+    without.querySelector("[data-testid=card-picture]")!.remove();
+    return {
+      kind: art.tagName.toLowerCase(),
+      loaded: art instanceof HTMLImageElement ? art.complete && art.naturalWidth > 0 : null,
+      words: el.textContent ?? "",
+      text: without.textContent ?? "",
+      frame: {
+        // The face around the picture: its elements, classes and positions.
+        tree: [...el.querySelectorAll("*")]
+          .filter((e) => !picture.contains(e) || e === picture)
+          .map((e) => `${e.tagName}.${e.getAttribute("class") ?? ""}[${e.getAttribute("style") ?? ""}]`),
+        sizes: [size(el as HTMLElement), size(picture), size(plate)],
+        // The picture fills its window, and says nothing to a screen reader.
+        fills: Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1,
+        silent: art.getAttribute("alt") === "" || art.getAttribute("aria-hidden") === "true",
+        motion: [motion(el.closest("[data-testid=card]")!), motion(el), motion(picture), motion(art)],
+      },
+    };
   });
   await p.page.mouse.up();
   await expect(p.page.getByTestId("card-name")).toHaveCount(0);
-  return { name, text, layout };
+  const { frame, ...rest } = face;
+  return { name, ...rest, frame: JSON.stringify({ back, ...frame }) };
+}
+
+/** No card shows a role, and every card has the same frame, hold behaviour and animation. */
+function sameCards(cards: Awaited<ReturnType<typeof peek>>[]) {
+  for (const c of cards) {
+    // Around the picture: only the name. In the picture: no role, label or stamp.
+    expect(c.text).toBe(c.name);
+    expect(c.words).not.toMatch(/doppel|imposter|role|odd one|majority|group/i);
+    expect(c.frame).toBe(cards[0].frame);
+  }
 }
 
 async function confirm(p: Phone, button: string, ok = "Confirm") {
@@ -162,12 +219,7 @@ test("start a round: one player secretly has a different character; nobody's car
   const group = cards.find((c) => count(c.name) === 3)!;
   expect(doppel).toBeDefined();
   expect(group).toBeDefined();
-  // No card shows a role, and every card is laid out and animated the same.
-  for (const c of cards) {
-    // Only the name (and the placeholder's initial): no role, label or stamp.
-    expect(c.text.replace(c.name, "")).toBe(c.name[0]);
-    expect(c.layout.replaceAll(c.name, "")).toBe(cards[0].layout.replaceAll(cards[0].name, ""));
-  }
+  sameCards(cards);
 
   // During the round no phone, the host's included, received the other character, a role, a
   // flag or a pair, in any API response or Realtime frame.
@@ -193,7 +245,7 @@ test("start a round: one player secretly has a different character; nobody's car
   await expect(host.page.getByRole("button", { name: "Restart" })).toBeVisible();
   for (const other of all.slice(1)) {
     await expect(other.page.getByText("Waiting for the host")).toBeVisible();
-    for (const name of ["Reveal", "Restart", "End"]) await expect(other.page.getByRole("button", { name, exact: true })).toHaveCount(0);
+    for (const name of ["Reveal the doppel", "Restart", "End"]) await expect(other.page.getByRole("button", { name, exact: true })).toHaveCount(0);
   }
 });
 
@@ -216,13 +268,13 @@ test("the host reveals the doppel: the same on every phone, through a refresh; R
   await expect(all[1].page.getByTestId("reveal")).toHaveCount(0);
 
   // It asks first; Cancel changes nothing.
-  await host.page.getByRole("button", { name: "Reveal", exact: true }).click();
+  await host.page.getByRole("button", { name: "Reveal the doppel", exact: true }).click();
   const dialog = host.page.getByRole("dialog");
-  await expect(dialog.getByRole("heading")).toHaveText("Reveal the doppel?");
+  await expect(dialog.getByRole("heading")).toHaveText("Reveal the doppel to everyone?");
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(dialog).toBeHidden();
   await expect(host.page.getByTestId("card")).toBeVisible();
-  await host.page.getByRole("button", { name: "Reveal", exact: true }).click();
+  await host.page.getByRole("button", { name: "Reveal the doppel", exact: true }).click();
   await dialog.getByRole("button", { name: "Reveal", exact: true }).click();
 
   const shows = async (p: Phone) => {
@@ -236,7 +288,7 @@ test("the host reveals the doppel: the same on every phone, through a refresh; R
     await expect(p.page.getByTestId("timer")).toHaveCount(0);
   };
   for (const p of all) await shows(p);
-  await expect(host.page.getByRole("button", { name: "Reveal", exact: true })).toHaveCount(0);
+  await expect(host.page.getByRole("button", { name: "Reveal the doppel", exact: true })).toHaveCount(0);
   await expect(host.page.getByRole("button", { name: "Start timer" })).toHaveCount(0);
 
   // It is stored: a refresh shows it again.
@@ -250,6 +302,59 @@ test("the host reveals the doppel: the same on every phone, through a refresh; R
     await expect(p.page.getByTestId("room-code")).toHaveText(code);
     await expect(p.page.getByTestId("reveal")).toHaveCount(0);
   }
+});
+
+test("a round with a portrait (Thor) and the placeholder (Loki), at phone width: the cards differ only in the character", async ({ browser }) => {
+  // Deal only Thor and Loki for this test, then put every pair back.
+  const admin = createClient(process.env.E2E_SUPABASE_URL!, process.env.E2E_SERVICE_KEY!, { auth: { persistSession: false }, db: { schema: "imposter" } });
+  const { error } = await admin.from("pairs").delete().or("a.neq.thor,b.neq.loki");
+  expect(error).toBeNull();
+  try {
+    const { all, host } = await room(browser);
+    expect(host.page.viewportSize()!.width).toBe(390);
+    await host.page.getByRole("button", { name: "Start round" }).click();
+    const cards: Awaited<ReturnType<typeof peek>>[] = [];
+    for (const p of all) cards.push(await peek(p));
+    expect(new Set(cards.map((c) => c.name))).toEqual(new Set(["Thor", "Loki"]));
+    for (const c of cards) {
+      expect(c.kind).toBe(c.name === "Thor" ? "img" : "svg");
+      if (c.name === "Thor") expect(c.loaded).toBe(true);
+    }
+    sameCards(cards);
+  } finally {
+    syncPairs();
+  }
+});
+
+test("Copy code: copied when the clipboard is allowed; when denied, says to select it, and the code selects", async ({ browser }) => {
+  const [ann, ben, cho, dee] = await phones(browser);
+  // Allowed: the code is on the clipboard, and a guest joins with it first time.
+  await ann.context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const code = await createRoom(ann);
+  await ann.page.getByRole("button", { name: "Copy code" }).click();
+  await expect(ann.page.getByRole("button", { name: "Copied" })).toBeVisible();
+  await expect(ann.page.getByTestId("copy-failed")).toHaveCount(0);
+  const copied = await ann.page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toBe(code);
+  await join(ben, copied);
+  await expect(ben.page.getByTestId("room-code")).toHaveText(code);
+
+  // Denied: the browser refuses the write.
+  await cho.context.addInitScript(() => {
+    const denied = () => Promise.reject(new DOMException("Write permission denied.", "NotAllowedError"));
+    Object.defineProperty(Navigator.prototype, "clipboard", { get: () => ({ writeText: denied }) });
+  });
+  await cho.page.reload();
+  const other = await createRoom(cho);
+  await cho.page.getByRole("button", { name: "Copy code" }).click();
+  await expect(cho.page.getByTestId("copy-failed")).toHaveText("Select the code to copy it");
+  await expect(cho.page.getByRole("button", { name: "Copy code" })).toBeVisible();
+  // One tap selects the whole code, and a guest joins with it first time.
+  await cho.page.getByTestId("room-code").click();
+  const selected = await cho.page.evaluate(() => getSelection()!.toString());
+  expect(selected).toBe(other);
+  await join(dee, selected);
+  await expect(dee.page.getByTestId("room-code")).toHaveText(other);
 });
 
 test("Restart keeps the list (and adds late joiners); End closes the room", async ({ browser }) => {
@@ -474,7 +579,7 @@ test("screenshots for the README @screens", async ({ browser }) => {
   await host.page.getByRole("button", { name: "Start timer" }).click();
   await host.page.waitForTimeout(5_000);
   await shoot(all[1].page, "card", true);
-  await confirm(host, "Reveal", "Reveal");
+  await confirm(host, "Reveal the doppel", "Reveal");
   await expect(all[1].page.getByTestId("reveal")).toBeVisible();
   await all[1].page.waitForTimeout(800);
   await shoot(all[1].page, "reveal");

@@ -44,6 +44,7 @@ data/                     characters.json and pairs.json (editable); art.json an
 scripts/art.mjs           npm run art: icons, menu background and card art from assets/brand/
 tests/db/                 RLS privacy and room-rule tests on a real Postgres (PGlite, no Docker)
 tests/e2e/                Playwright, four browser contexts, against a local Supabase
+.github/workflows/        CI: npm ci, then npm run check, on every push and pull request
 ```
 
 ## Local development
@@ -74,6 +75,10 @@ npm run e2e           # Playwright; needs `npx supabase start` (it refuses any n
 npm run check         # lint + typecheck + test + data:check
 npm run screens       # retakes the README screenshots (local Supabase too)
 ```
+
+GitHub Actions (`.github/workflows/check.yml`) runs `npm ci` and `npm run check` on Node 24 for
+every push and pull request. Playwright stays local: it needs the Supabase stack in Docker. Run
+`npm run e2e` before shipping changes to the card, the room state or the reveal.
 
 The local stack uses ports 563xx (API on `http://127.0.0.1:56321`), not Supabase's default
 543xx, because Windows reserves 54304–54403 on the owner's machine. If `npx supabase start` still
@@ -208,8 +213,9 @@ Nothing else in the game depends on how the session was made.
 
 ## The reveal (host only)
 
-During a round the host has **Reveal** next to Restart and End. It asks first ("Reveal the
-doppel?", Cancel / Reveal). Then every phone shows "The doppel was <display name>" and both
+During a round the host has **Reveal the doppel** next to Restart and End. (Players see "Hold
+to see your card" on their own card, so the two actions never share a word.) It asks first
+("Reveal the doppel to everyone?", Cancel / Reveal). Then every phone shows "The doppel was <display name>" and both
 characters side by side, with their pictures and names: the group's character and the doppel's.
 `imposter.reveal()` stores this on the room (host only, room row locked), so a refresh or a
 reconnect shows it again. The round ends there and the timer stops. The host then uses Restart
@@ -222,7 +228,9 @@ the reveal is still named.
 All of these live in the database functions, which lock the room row first, so two taps
 at once can't break a room (`tests/db/rules.test.ts` covers each):
 
-- Room codes: 6 characters with no 0, O, 1 or I; typing ignores case and spaces.
+- Room codes: 6 characters with no 0, O, 1 or I; typing ignores case and spaces. Copy code puts
+  the code on the clipboard; if the browser refuses (no permission, plain http), it says "Select
+  the code to copy it", and one tap on the code selects all of it.
 - 3 to 12 players; only the host can remove, start, restart and end.
 - Joining during a round queues you ("Round in progress, you'll join next round"); Restart adds you.
 - Removed players can't rejoin that room (checked by account).
@@ -233,7 +241,7 @@ at once can't break a room (`tests/db/rules.test.ts` covers each):
   screen on in the game room and during rounds (Wake Lock API, where supported), so a phone left
   on the table doesn't count as away. A tab in the background does (the dot turns to "away"
   after about 25 seconds without a heartbeat).
-- Leave room asks first ("Leave this room?"); Remove, Reveal, Restart and End ask too.
+- Leave room asks first ("Leave this room?"); Remove, Reveal the doppel, Restart and End ask too.
 - Only the host can reveal, once per round; it stops the timer, and Restart clears it.
 - Each round: a random pair, a random majority side, a random doppel, avoiding the room's
   last 5 pairs (with 5 pairs or fewer, as many recent ones as possible while one is left).
@@ -253,7 +261,11 @@ at once can't break a room (`tests/db/rules.test.ts` covers each):
 - `tests/db/privacy.test.ts` proves this as a player and as anon, even with every table granted.
   The round e2e test records every API response and Realtime frame on all four phones, the host's
   included, until the reveal. It checks that none of them contains the other character, a role,
-  a flag or a pair, and that every card has the same layout and animation.
+  a flag or a pair. On every card it checks the hold (hidden, shown only while held, hidden
+  again), that the card says nothing but the name, and that its frame (the back, the face around
+  the picture, their sizes) and its motion are the same for everyone. The picture is left out of
+  that comparison, so it holds with real portraits: another round deals only Thor (with a test
+  portrait the tests serve) and Loki (the placeholder) at phone width and compares those cards.
 - The service-role key stays on the server.
 
 ## Owner steps
@@ -265,6 +277,9 @@ at once can't break a room (`tests/db/rules.test.ts` covers each):
 2. Create the private GitHub repo and push, then create the Vercel project and add the three
    environment variables.
 3. Review the Burmese text in `src/lib/i18n.ts` (every line is a draft, including the timer, How to play and reveal lines).
+   The newest lines are marked `// REVIEW` with the English beside them: "Hold to see your card",
+   "Reveal the doppel", "Reveal the doppel to everyone?", "Select the code to copy it", and How to
+   play steps 2 and 5.
 4. Replace or extend the seed characters and pairs; add images when you have them.
 5. Add the game to the PolyHydra hub (`src/lib/games.ts` there) with its `playUrl`, as "Doppel".
 6. When the art changes, put the new originals in `assets/brand/`, run `npm run art`, and commit

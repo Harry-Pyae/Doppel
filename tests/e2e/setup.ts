@@ -1,8 +1,7 @@
 // Test accounts and pairs in the LOCAL Supabase (playwright.config.ts refuses any other).
 // The game itself never creates accounts; only this test setup does, locally.
-import { execSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
-import { ACCOUNTS, PASSWORD, PENDING } from "./accounts";
+import { ACCOUNTS, PASSWORD, PENDING, syncPairs } from "./accounts";
 
 export default async function setup() {
   const url = process.env.E2E_SUPABASE_URL!;
@@ -22,5 +21,5 @@ export default async function setup() {
     if (error) throw error;
   }
   // The current pairs.
-  execSync("node scripts/sync-pairs.mjs", { stdio: "inherit", env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: key } });
+  syncPairs();
 }

@@ -3,7 +3,11 @@ import type { NextConfig } from "next";
 
 // Character images that exist (public/characters/<id>.webp); the rest use the placeholder.
 // Read at build (and dev start), so a dropped-in image needs a redeploy or a dev restart.
-const images = readdirSync("public/characters").filter((f) => f.endsWith(".webp"));
+// E2E_CHARACTER_IMAGES (end-to-end tests only) adds images the test serves itself.
+const images = [
+  ...readdirSync("public/characters").filter((f) => f.endsWith(".webp")),
+  ...(process.env.E2E_CHARACTER_IMAGES?.split(",") ?? []),
+];
 
 // The processed art (npm run art), only where its files exist; the rest keeps the placeholders.
 const json = (file: string) => {

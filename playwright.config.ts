@@ -37,6 +37,9 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_URL: url,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: local.anonKey,
       SUPABASE_SERVICE_ROLE_KEY: local.serviceKey,
+      // Thor gets a portrait (tests/e2e/game.e2e.ts serves it), Loki keeps the placeholder.
+      // The README screenshots show only the real files.
+      E2E_CHARACTER_IMAGES: process.env.npm_lifecycle_event === "screens" ? "" : "thor.webp",
     },
   },
 });

@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
 
 export const PASSWORD = "e2e-password-123";
@@ -16,6 +17,12 @@ export async function api(a: (typeof ACCOUNTS)[number]) {
   const { error } = await db.auth.signInWithPassword({ email: `${a.username}@e2e.invalid`, password: PASSWORD });
   if (error) throw error;
   return db;
+}
+
+/** Copies data/pairs.json into the local database again (as npm run data:sync does). */
+export function syncPairs() {
+  const env = { ...process.env, NEXT_PUBLIC_SUPABASE_URL: process.env.E2E_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY: process.env.E2E_SERVICE_KEY };
+  execSync("node scripts/sync-pairs.mjs", { stdio: "inherit", env });
 }
 
 /** Every test account leaves its room, so each test starts at the main menu. */

@@ -1,0 +1,16 @@
+# Lint, types, the data check and the database privacy tests (PGlite, no Docker) on every
+# push and pull request. Playwright needs a local Supabase in Docker, so it stays off CI.
+name: Check
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Node 24, as in package.json "engines", the README and Vercel.
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
