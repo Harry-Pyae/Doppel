@@ -174,7 +174,8 @@ The originals go in `assets/brand/` (kept out of git): `icon.png`, `icon-simple.
 - `data/characters.json`: `{ "id", "name", "category", "image" }`. `id` is lower-case letters,
   digits and dashes; `category` is free text (actor, musician, artist, superhero, anime…);
   `image` is `"<id>.webp"` (or `null`).
-- `data/pairs.json`: related pairs by character id, e.g. `["taylor-swift", "ariana-grande"]`.
+- `data/pairs.json`: related pairs by character id, with an optional comment (never shown to
+  players), e.g. `["taylor-swift", "ariana-grande", "pop stars"]`.
   A character may be in several pairs. Each round picks a pair, then randomly decides which side
   the majority gets; the other side goes to the doppel.
 - **Images:** drop `public/characters/<id>.webp` (square, 512 × 512) into the folder and redeploy

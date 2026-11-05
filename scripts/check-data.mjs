@@ -28,11 +28,11 @@ export function checkData(characters = json("data/characters.json"), pairs = jso
   const seen = new Set();
   for (const [i, pair] of pairs.entries()) {
     const at = `pairs[${i}]`;
-    if (!Array.isArray(pair) || pair.length !== 2) {
-      errors.push(`${at}: must be two character ids`);
+    if (!Array.isArray(pair) || pair.length < 2 || pair.length > 3 || (pair.length === 3 && typeof pair[2] !== "string")) {
+      errors.push(`${at}: must be two character ids (and an optional comment)`);
       continue;
     }
-    for (const id of pair) if (!ids.has(id)) errors.push(`${at}: unknown character "${id}"`);
+    for (const id of pair.slice(0, 2)) if (!ids.has(id)) errors.push(`${at}: unknown character "${id}"`);
     if (pair[0] === pair[1]) errors.push(`${at}: a pair needs two different characters`);
     if (seen.has(pairId(pair))) errors.push(`${at}: duplicate pair`);
     seen.add(pairId(pair));
